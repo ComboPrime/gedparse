@@ -1,0 +1,491 @@
+<?php
+/**
+ * @file
+ * GEDparse dynamically generates genealogy web pages from a GEDCOM file.
+ */
+
+/**
+ * Implements hook_help().
+ */
+function gedparse_help($path, $arg) {
+  if ($path == 'admin/help#gedparse') {
+    return t('GEDparse dynamically generates genealogy web pages from a GEDCOM file.');
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function gedparse_menu() {
+  $items = array();
+
+  $items['admin/config/gedparse'] = array(
+    'title' => t('Configure GEDparse'),
+    'description' => t('Configure settings for the GEDparse module.'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('gedparse_admin'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['family/%'] = array(
+    'title' => t('Family Tree Info'),
+    'page callback' => 'gedparse_display_person',
+    'page arguments' => array(1),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Callback function to create the admin config page
+ */
+function gedparse_admin() {
+  $form = array();
+
+  $form['gedparse_db_location'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Location of your GEDCOM file'),
+    '#size' => 100,
+    '#maxlength' => 100,
+    '#description' => t('This directory should not be accessible over the web.'),
+    '#default_value' => variable_get('gedparse_db_location'),
+    '#required' => TRUE,
+  );
+
+  $form['gedparse_headshot_location'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Location of your optional folder of headshots'),
+    '#size' => 100,
+    '#maxlength' => 100,
+    '#description' => t('This directory must be accessible over the web.'),
+    '#default_value' => variable_get('gedparse_headshot_location'),
+  );
+
+  // allow admin to set permissions?
+
+  return system_settings_form($form);
+}
+
+/**
+ * Callback function to display a person
+ */
+function gedparse_display_person($indi_number) {
+  // set up array for later output
+  $gedparse_event_list = array(
+    'BIRT' => 'Born',
+    'CHR'  => 'Christened',
+    'DEAT' => 'Died',
+    'BURI' => 'Buried',
+    'CREM' => 'Cremated',
+    'ADOP' => 'Adopted',
+    'BAPM' => 'Baptized',
+    'BARM' => 'Bar Mitzvah',
+    'BASM' => 'Bas Mitzvah',
+    'BLES' => 'Blessing given',
+    'CHRA' => 'Christened as adult',
+    'CONF' => 'Confirmed',
+    'FCOM' => 'First Communion',
+    'ORDN' => 'Ordained',
+    'NATU' => 'Naturalized',
+    'EMIG' => 'Emigrated',
+    'IMMI' => 'Immigrated',
+    'CENS' => 'Census record',
+    'PROB' => 'Probate',
+    'WILL' => 'Will',
+    'GRAD' => 'Graduated',
+    'RETI' => 'Retired',
+    'EVEN' => '',
+    'CAST' => 'Caste',
+    'DSCR' => 'Description',
+    'EDUC' => 'Scholastic achievment',
+    'IDNO' => 'National ID #',
+    'NATI' => 'Nationality',
+    'NCHI' => 'No. of children',
+    'NMR'  => 'No. of marriages',
+    'OCCU' => 'Occupation',
+    'PROP' => 'Possessions',
+    'RELI' => 'Religion',
+    'RESI' => 'Residence',
+    'SSN'  => 'SSN#',
+    'TITL' => 'Title'
+  );
+
+  // get the raw data
+  $flat_record = gedparse_get_record('INDI', $indi_number) ;
+
+  // Explode flat_record to get array of separate items
+  $items = explode("\n1 ", $flat_record) ;
+
+  // create some variables for each kind of item
+  $gender = '' ;
+  $names = array() ;
+  $events = array() ;
+  $notes = array() ;
+  $links = array() ;
+
+  // iterate through all the record items, sorting into the arrays and
+  // theming if necessary
+  foreach($items as $item) {
+    if (strpos($item, '@') === 0) {
+      // only here so we can use 'else' at end as a catch-all bucket
+    }
+
+    elseif (strpos($item, 'FAM') === 0) {
+      // need to deal with family info
+    }
+
+    elseif (strpos($item, 'SSN') === 0) {
+      $events[] = array(
+        '#theme' => 'gedparse_event',
+        '#label' => 'SSN#',
+        '#info' => substr($item, 3),
+      ) ;
+    }
+
+    elseif (strpos($item, 'SEX') === 0) {
+      $gender = substr($item, 3) ;
+    }
+
+    elseif (strpos($item, 'NAME') === 0) {
+      $names[] = substr($item, 4) ;
+      // need to deal with possible notes
+      // also need to run through clean_names
+    }
+
+    elseif (strpos($item, 'NOTE') === 0) {
+      $notes[] = gedparse_concatenate(substr($item, 4)) ;
+    }
+
+   elseif  (strpos($item, 'OBJE') === 0) {
+      $item_parts = explode("\n2 ", $item) ;
+
+      $obje = array(
+        'href' => NULL,
+        'title' => NULL,
+      ) ;
+
+     foreach($item_parts as $part) {
+        if (strpos($part, 'FILE') === 0) {
+          $obje['href'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'TITL') === 0) {
+          $obje['title'] = substr($part, 4) ;
+        }
+      }
+
+      $links[] = $obje ;
+    }
+
+    else {
+      $event = array(
+        '#theme' => 'gedparse_event',
+        '#type' => NULL,
+        '#date' => NULL,
+        '#plac' => NULL,
+        //'#notes' => NULL,
+        // need to deal with notes
+        '#caus' => NULL,
+        '#info' => NULL,
+      ) ;
+
+     $item_parts = explode("\n2 ", $item) ;
+     $event['#label'] = $gedparse_event_list[array_shift($item_parts)] ;
+
+      foreach($item_parts as $part) {
+        if (strpos($part, 'TYPE') === 0) {
+          $event['#type'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'DATE') === 0) {
+          $event['#date'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'PLAC') === 0) {
+          $event['#plac'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'CAUS') === 0) {
+          $event['#caus'] = substr($part, 4) ;
+        }
+      }
+
+      $events[] = $event ;
+    }
+  }
+
+  // Remove the first name from the array
+  $main_name = array_shift($names) ;
+
+  $output =  array(
+    'headshot' => array(
+      '#theme' => 'image',
+      '#path' => 'sites/etgdesign.com/files/headshots/indi' . $indi_number . '.jpg',
+      '#width' => '75px',
+      '#height' => '100px',
+      '#alt' => 'Portrait of Harry Sforzini',
+    ),
+    'main_name' => array(
+      '#type' => 'markup',
+      '#markup' => $main_name,
+      '#prefix' => '<h2>',
+      '#suffix' => '</h2>',
+    ),
+    'other_names' => array(
+      '#theme' => 'gedparse_names',
+      '#names' => $names,
+    ),
+    'gender' => array(
+      '#type' => 'markup',
+      '#markup' => $gender,
+      '#prefix' => '<p>Gender: ',
+      '#suffix' => '</p>',
+    ),
+    'events' => $events,
+    'notes' => array(
+      '#theme' => 'item_list',
+      '#title' => t('Notes'),
+      '#type' => 'ul',
+      '#items' => $notes,
+    ),
+    'links' => array(
+      '#theme' => 'links',
+      '#heading' => t('Related Links'),
+      // should be h3, not h2
+      '#links' => $links,
+    ),
+    'items' => array(
+      '#theme' => 'item_list',
+      '#title' => t('Items'),
+      '#type' => 'ul',
+      '#items' => $items,
+    ),
+    'whole_record' => array(
+      // only for debugging purposes
+      '#type' => 'markup',
+      '#markup' => $flat_record,
+      '#prefix' => '<pre>',
+      '#suffix' => '</pre>',
+    ),
+  );
+
+  return $output;
+}
+
+/**
+ * Validate the user-entered GEDparse settings
+ */
+function gedparse_admin_validate($form, &$form_state) {
+  $gedparse_db_location = $form_state['values']['gedparse_db_location'];
+  if (!file_exists($gedparse_db_location)) {
+    form_set_error('gedparse_db_location', t("Can't find a file at that location."));
+  }
+
+  $gedparse_headshot_location = $form_state['values']['gedparse_headshot_location'];
+  if ($gedparse_headshot_location && !file_exists($gedparse_headshot_location)) {
+    form_set_error('gedparse_headshot_location', t("Can't find a folder at that location."));
+  }
+}
+
+/**
+ * Implements hook_theme()
+ */
+function gedparse_theme() {
+  return array(
+    'gedparse_event' => array(
+      'variables' => array(
+        'label' => NULL,
+        'type' => NULL,
+        'date' => NULL,
+        'plac' => NULL,
+        'info' => NULL,
+        //'notes' => NULL,
+        'caus' => NULL,
+      ),
+    ),
+
+    'gedparse_names' => array(
+      'variables' => array(
+        'names' => NULL,
+      ),
+    ),
+  );
+}
+
+/**
+ * Custom theme function for event items
+ */
+function theme_gedparse_event($variables) {
+  $output = "\n\n<p><em>" ;
+
+  if ($variables['label']) {
+    $output .= $variables['label'] . '</em> ';
+  }
+
+  if ($variables['label'] && $variables['type']) {
+    $output .= $variables['type'] . "<br>\n";
+  }
+
+  elseif ($variables['type']) {
+    $output .= $variables['type'] . '</em> ';
+  }
+
+  if ($variables['info']) {
+    if (strpos($variables['info'], 'Y') === 0) {
+      $output .= 'Yes';
+    }
+
+    else {
+      $output .=  $variables['info'] ;
+    }
+  }
+
+  if ( $variables['info'] && ($variables['plac'] || $variables['date']) ) {
+    $output .= ', ' ;
+  }
+
+  if ($variables['date']) {
+    $output .= $variables['date'] ;
+  }
+
+  if ($variables['date'] && $variables['plac']) {
+    $output .= '; ' ;
+  }
+
+  if ($variables['plac']) {
+    $output .= $variables['plac'] ;
+  }
+
+  if ($variables['caus']) {
+    $output .= "<br>\n<em>Cause:</em>" . $variables['caus'] ;
+  }
+
+  $output .= '</p>' ;
+
+// 		if ($variables['NOTES']) {
+// 			main::PrintNotes($self);
+// 		}
+
+//   if ($variables['info']) {
+//     $output .= $variables['info'] ;
+//   }
+//
+//   if ($variables['type']) {
+//     $output .= $variables['type'] ;
+//   }
+//
+//   if ( $variables['plac'] || $variables['date'] ) {
+//     $output .= ", ";
+//   }
+//
+//   if ($variables['date']) {
+//     $output .= $variables['date'] ;
+//   }
+//
+//   if ($variables['date'] && $variables['plac']) {
+//     $output .= "; ";
+//   }
+//
+//   if ($variables['plac']) {
+//     $output .= $variables['plac'] ;
+//   }
+//
+//   if ($variables['caus']) {
+//     $output .= "<br>\n<em>Cause:</em> " . $variables['caus'] ;
+//   }
+//
+//   $output .= '</p>';
+//
+// 		if ($variables['NOTES) {
+// 			main::PrintNotes($self);
+// 		}
+
+
+
+  return $output ;
+}
+
+
+/**
+ * Custom theme function for names
+ */
+function theme_gedparse_names($variables) {
+  $output = '<p><em>(' . implode(',', $variables['names']) . ')</em></p>' ;
+
+  return $output ;
+}
+
+/**
+ * Get an exploded array of records from the flat GEDCOM file.
+ *
+ * Use Drupal's Cache API to improve performance.
+ */
+function gedparse_get_all_records() {
+  // First check if the exploded array is already cached.
+  // If not, create and cache it.
+  if (!$all_records = cache_get('gedparse:all_records', 'cache')) {
+    // The user should have set this location in /admin/config/gedparse
+    $file = variable_get('gedparse_db_location') ;
+    $fh = fopen($file, 'r') or die($php_errormsg);
+
+    // Read the entire file
+    $gedcom = fread($fh, filesize($file));
+    fclose($fh);
+
+    // Then split the file into an array of records
+    $all_records = explode("\n0 ", $gedcom);
+
+    // Cache the array
+    cache_set('gedparse:all_records', $all_records, 'cache', CACHE_TEMPORARY) ;
+
+    // And return it
+    return $all_records ;
+ }
+
+  // If it IS in the cache, get it
+  else {
+    $all_records = cache_get('gedparse:all_records', 'cache') ;
+
+    // need to check if expired? See comment-48288 on cache_get API page
+    // And return the data value of the cached item
+    return $all_records->data ;
+  }
+}
+
+/**
+ * Retrieve an INDI or FAM record from exploded array of the flat GEDCOM file.
+ *
+ * Use Drupal's Cache API to improve performance.
+ */
+function gedparse_get_record($type, $record_number) {
+  $all_records = gedparse_get_all_records() ;
+
+  $matches =  preg_grep('/^@[IF]'.$record_number.'@ '.$type.'/', $all_records) ;
+
+  // by default, preg_grep retains the input array's keys, so need to reset keys.
+  $matches = array_values($matches) ;
+
+  return($matches[0]) ;
+}
+
+/**
+ * Removes slashes from names
+ */
+function gedparse_clean_name($name) {
+	$name = str_replace('/', '', $name) ;
+	return $name ;
+}
+
+/**
+ * Removes CONC/CONT tags and connects lines
+ */
+function gedparse_concatenate($text) {
+	$text = preg_replace("/\n\d+? CONC/", " ", $text) ;
+	$text = preg_replace("/\n\d+? CONT/", "<br>", $text) ;
+	return $text;
+}
+
+
