@@ -381,13 +381,10 @@ function theme_gedparse_event($variables) {
  * Custom theme function for names
  */
 function theme_gedparse_names($variables) {
-  $all_names = array() ;
-  $name_notes = array() ;
+  $output = '' ;
 
   foreach($variables['names'] as $name) {
     $name_parts = explode("\n2 ", $name) ;
-
-    $all_names[] = array_shift($name_parts) ;
 
     foreach($name_parts as $name_extra) {
       if (strpos($name_extra, 'NICK') === 0) {
