@@ -1,4 +1,4 @@
-name = GEDparse
+name = Gedparse
 description = Generates dynamic web pages from a GEDCOM file.
 
 package = etg Modules
