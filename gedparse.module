@@ -150,22 +150,58 @@ function gedparse_display_person($indi_number) {
     }
 
     elseif (strpos($item, 'NAME') === 0) {
-      $names[] = substr($item, 4) ;
-      // need to deal with possible notes
-      // also need to run through clean_names
-    }
+      // need to run through clean_names
+     $name = array(
+        '#theme' => 'gedparse_name',
+        '#npfx' => NULL,
+        '#full_name' => NULL,
+        '#nsfx' => NULL,
+        '#nick' => NULL,
+        '#notes' => array(
+        	'#theme' => 'item_list',
+					'#type' => 'ul',
+					'#items' => NULL,
+        ),
+      ) ;
 
+			$name_parts = explode("\n2 ", $item) ;
+
+			foreach($name_parts as $part) {
+				if (strpos($part, 'NPFX') === 0) {
+					$name['#npfx'] = substr($part, 4) ;
+				}
+
+				elseif (strpos($part, 'NAME') === 0) {
+					$name['#full_name'] = substr($part, 4) ;
+				}
+
+				elseif (strpos($part, 'NSFX') === 0) {
+					$name['#nsfx'] = substr($part, 4) ;
+				}
+
+				elseif (strpos($part, 'NICK') === 0) {
+					$name['#nick'] = substr($part, 4) ;
+				}
+
+				elseif (strpos($part, 'NOTE') === 0) {
+					$name['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
+				}
+			}
+			
+			$names[] = $name ;
+		}
+		
     elseif (strpos($item, 'NOTE') === 0) {
       $notes[] = gedparse_concatenate(substr($item, 4)) ;
     }
 
-   elseif  (strpos($item, 'OBJE') === 0) {
-      $item_parts = explode("\n2 ", $item) ;
+   elseif (strpos($item, 'OBJE') === 0) {
+		$obje = array(
+			'href' => NULL,
+			'title' => NULL,
+		) ;
 
-      $obje = array(
-        'href' => NULL,
-        'title' => NULL,
-      ) ;
+     $item_parts = explode("\n2 ", $item) ;
 
      foreach($item_parts as $part) {
         if (strpos($part, 'FILE') === 0) {
@@ -186,10 +222,14 @@ function gedparse_display_person($indi_number) {
         '#type' => NULL,
         '#date' => NULL,
         '#plac' => NULL,
-        //'#notes' => NULL,
-        // need to deal with notes
+        '#notes' => NULL,
         '#caus' => NULL,
         '#info' => NULL,
+        '#notes' => array(
+        	'#theme' => 'item_list',
+					'#type' => 'ul',
+					'#items' => NULL,
+        ),
       ) ;
 
      $item_parts = explode("\n2 ", $item) ;
@@ -218,63 +258,76 @@ function gedparse_display_person($indi_number) {
         elseif (strpos($part, 'CAUS') === 0) {
           $event['#caus'] = substr($part, 4) ;
         }
+
+				elseif (strpos($part, 'NOTE') === 0) {
+					$event['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
+				}
       }
 
       $events[] = $event ;
     }
   }
-
+	
+	$main_name = array_shift($names) ;
+	$title = $main_name['#full_name'] ;
+	drupal_set_title($title) ;
+	
   $output =  array(
-    'headshot' => array(
-      '#theme' => 'image',
-      '#path' => 'sites/etgdesign.com/files/headshots/indi' . $indi_number . '.jpg',
-      '#width' => '75px',
-      '#height' => '100px',
-      '#alt' => 'Portrait of Harry Sforzini',
-    ),
-//     'main_name' => array(
-//       '#type' => 'markup',
-//       '#markup' => $main_name,
-//       '#prefix' => '<h2>',
-//       '#suffix' => '</h2>',
-//     ),
-    'names' => array(
-      '#theme' => 'gedparse_names',
-      '#names' => $names,
-    ),
-    'gender' => array(
+	 'gender' => array(
       '#type' => 'markup',
       '#markup' => $gender,
       '#prefix' => '<p>Gender: ',
       '#suffix' => '</p>',
     ),
+   'headshot' => array(
+      '#theme' => 'image',
+      '#path' => 'sites/etgdesign.com/files/headshots/indi' . $indi_number . '.jpg',
+      '#width' => '75px',
+      '#height' => '100px',
+      '#alt' => 'Portrait of ' . $main_name ,
+    ),
+//     'main_name' = array(
+//     	'#theme' => 'gedparse_name',
+//     	'#name' => $main_name,
+//     	'#prefix' => '<h2>',
+//     	'#suffix' => '</h2>',
+//     ),
+    'other_names' => $names,
     'events' => $events,
-    'notes' => array(
+  ) ;
+  
+  if ($notes) {
+  	$output['notes'] = array(
       '#theme' => 'item_list',
       '#title' => t('Notes'),
       '#type' => 'ul',
       '#items' => $notes,
-    ),
-    'links' => array(
+    ) ;
+  }
+  
+  if ($links) {
+  	$output['links'] = array(
       '#theme' => 'links',
       '#heading' => t('Related Links'),
       // should be h3, not h2
       '#links' => $links,
-    ),
-    'items' => array(
-      '#theme' => 'item_list',
-      '#title' => t('Items'),
-      '#type' => 'ul',
-      '#items' => $items,
-    ),
-    'whole_record' => array(
+    ) ;
+  }
+  
       // only for debugging purposes
-      '#type' => 'markup',
-      '#markup' => $flat_record,
-      '#prefix' => '<pre>',
-      '#suffix' => '</pre>',
-    ),
-  );
+//     'items' => array(
+//       '#theme' => 'item_list',
+//       '#title' => t('Items'),
+//       '#type' => 'ul',
+//       '#items' => $items,
+//     ),
+		// only for debugging purposes
+//     'whole_record' => array(
+//       '#type' => 'markup',
+//       '#markup' => $flat_record,
+//       '#prefix' => '<pre>',
+//       '#suffix' => '</pre>',
+//     ),
 
   return $output;
 }
@@ -306,14 +359,18 @@ function gedparse_theme() {
         'date' => NULL,
         'plac' => NULL,
         'info' => NULL,
-        //'notes' => NULL,
+        'notes' => NULL,
         'caus' => NULL,
       ),
     ),
 
-    'gedparse_names' => array(
+    'gedparse_name' => array(
       'variables' => array(
-        'names' => NULL,
+        'npfx' => NULL,
+        'full_name' => NULL,
+        'nsfx' => NULL,
+        'nick' => NULL,
+        'notes' => NULL,
       ),
     ),
   );
@@ -325,12 +382,12 @@ function gedparse_theme() {
 function theme_gedparse_event($variables) {
   $output = "\n\n<p><em>" ;
 
-  if ($variables['label']) {
-    $output .= $variables['label'] . '</em> ';
+  if ($variables['label'] && $variables['type']) {
+    $output .= $variables['label'] . '</em> ' . $variables['type'] . "<br>\n";
   }
 
-  if ($variables['label'] && $variables['type']) {
-    $output .= $variables['type'] . "<br>\n";
+  elseif ($variables['label']) {
+     $output .= $variables['label'] . '</em> ';
   }
 
   elseif ($variables['type']) {
@@ -369,10 +426,9 @@ function theme_gedparse_event($variables) {
 
   $output .= '</p>' ;
 
-// 		if ($variables['NOTES']) {
-// 			main::PrintNotes($self);
-// 		}
-
+	// Also get Drupal to render HTML for a list of notes
+	$output .= drupal_render($variables['notes']) ;
+	
   return $output ;
 }
 
@@ -380,31 +436,19 @@ function theme_gedparse_event($variables) {
 /**
  * Custom theme function for names
  */
-function theme_gedparse_names($variables) {
-  $output = '' ;
-
-  foreach($variables['names'] as $name) {
-    $name_parts = explode("\n2 ", $name) ;
-
-    foreach($name_parts as $name_extra) {
-      if (strpos($name_extra, 'NICK') === 0) {
-        $all_names[] = '"' . substr($name_extra, 5) . '"';
-      }
-
-      elseif (strpos($name_extra, 'NOTE') === 0) {
-        $name_notes[] = gedparse_concatenate(substr($name_extra, 5)) ;
-      }
-    }
-  }
-
-  // Remove the first name from the array
-  $main_name = array_shift($all_names) ;
-  drupal_set_title($main_name) ;
-
-  $output = '<h2>' . $main_name . '</h2>' ;
-  $output .= '<p><em>(' . implode(',', $all_names) . ')</em></p>' ;
-  $output .= '<pre>' . print_r($name_notes, TRUE) ;
-
+function theme_gedparse_name($variables) {
+	// build the name by checking for each part in the array and adding
+	// to the output string
+	$output = "\n\n<p><em>(" ;
+  $output .= $variables['npfx'] ? $variables['npfx'] : '' ;
+  $output .= $variables['full_name'] ? $variables['full_name'] : 'Name unknown' ;
+  $output .= $variables['nsfx'] ? ', ' . $variables['nsfx'] : '' ;
+  $output .= $variables['nick'] ? ', “' . $variables['nick'] . '”' : '' ;
+	$output .= ")</em></p>" ;
+	
+	// Also get Drupal to render HTML for a list of notes
+	$output .= drupal_render($variables['notes']) ;
+	
   return $output ;
 }
 
