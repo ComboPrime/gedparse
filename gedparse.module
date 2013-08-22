@@ -121,10 +121,17 @@ function gedparse_display_person($indi_number) {
 
   // create some variables for each kind of item
   $gender = '' ;
+
+  // Records are not restricted by default
+  $restricted = FALSE ;
+
+  $parent_family_id = '' ;
+  $parents = array() ;
   $names = array() ;
   $events = array() ;
   $notes = array() ;
   $links = array() ;
+  $partners = array() ;
 
   // iterate through all the record items, sorting into the arrays and
   // theming if necessary
@@ -133,8 +140,32 @@ function gedparse_display_person($indi_number) {
       // only here so we can use 'else' at end as a catch-all bucket
     }
 
-    elseif (strpos($item, 'FAM') === 0) {
-      // need to deal with family info
+    elseif (strpos($item, 'RESN') === 0) {
+      $restricted = TRUE ;
+    }
+
+    elseif (strpos($item, 'FAMC') === 0) {
+      preg_match('@F(\d+)@i',$item, $matches);
+
+      $family_id_numbers = gedparse_get_family_members($matches[1], 'parents') ;
+
+      foreach($family_id_numbers as $id_number) {
+       $parent = gedparse_person_link($id_number) ;
+
+       $parents[] = $parent ;
+      }
+    }
+
+    elseif (strpos($item, 'FAMS') === 0) {
+      preg_match('@F(\d+)@i',$item, $matches);
+
+      $family_id_numbers = gedparse_get_family_members($matches[1], 'partners', $indi_number) ;
+
+      foreach($family_id_numbers as $id_number) {
+       $partner = gedparse_person_link($id_number) ;
+
+       $partners[] = $partner ;
+      }
     }
 
     elseif (strpos($item, 'SSN') === 0) {
@@ -187,10 +218,10 @@ function gedparse_display_person($indi_number) {
 					$name['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
 				}
 			}
-			
+
 			$names[] = $name ;
 		}
-		
+
     elseif (strpos($item, 'NOTE') === 0) {
       $notes[] = gedparse_concatenate(substr($item, 4)) ;
     }
@@ -267,17 +298,22 @@ function gedparse_display_person($indi_number) {
       $events[] = $event ;
     }
   }
-	
+
 	$main_name = array_shift($names) ;
 	$title = $main_name['#full_name'] ;
 	drupal_set_title($title) ;
-	
+
   $output =  array(
 	 'gender' => array(
       '#type' => 'markup',
       '#markup' => $gender,
       '#prefix' => '<p>Gender: ',
       '#suffix' => '</p>',
+    ),
+	 'parents' => array(
+      '#theme' => 'links',
+      '#heading' => t('Parents'),
+      '#links' => $parents,
     ),
    'headshot' => array(
       '#theme' => 'image',
@@ -295,7 +331,7 @@ function gedparse_display_person($indi_number) {
     'other_names' => $names,
     'events' => $events,
   ) ;
-  
+
   if ($notes) {
   	$output['notes'] = array(
       '#theme' => 'item_list',
@@ -304,7 +340,7 @@ function gedparse_display_person($indi_number) {
       '#items' => $notes,
     ) ;
   }
-  
+
   if ($links) {
   	$output['links'] = array(
       '#theme' => 'links',
@@ -313,14 +349,23 @@ function gedparse_display_person($indi_number) {
       '#links' => $links,
     ) ;
   }
-  
-      // only for debugging purposes
-//     'items' => array(
-//       '#theme' => 'item_list',
-//       '#title' => t('Items'),
-//       '#type' => 'ul',
-//       '#items' => $items,
-//     ),
+
+  if ($partners) {
+	 $output['partners'] = array(
+      '#theme' => 'links',
+      '#heading' => t('Partners'),
+      '#markup' => t('(Select a partner to display information on their union)'),
+      '#links' => $partners,
+    ) ;
+  }
+  // only for debugging purposes
+//   $output['items'] = array(
+//     '#theme' => 'item_list',
+//     '#title' => t('Items'),
+//     '#type' => 'ul',
+//     '#items' => $items,
+//   ) ;
+
 		// only for debugging purposes
 //     'whole_record' => array(
 //       '#type' => 'markup',
@@ -428,7 +473,7 @@ function theme_gedparse_event($variables) {
 
 	// Also get Drupal to render HTML for a list of notes
 	$output .= drupal_render($variables['notes']) ;
-	
+
   return $output ;
 }
 
@@ -445,12 +490,45 @@ function theme_gedparse_name($variables) {
   $output .= $variables['nsfx'] ? ', ' . $variables['nsfx'] : '' ;
   $output .= $variables['nick'] ? ', “' . $variables['nick'] . '”' : '' ;
 	$output .= ")</em></p>" ;
-	
+
 	// Also get Drupal to render HTML for a list of notes
 	$output .= drupal_render($variables['notes']) ;
-	
+
   return $output ;
 }
+
+  /**
+   * Custom theme function for a person's name that links to their record
+   */
+  function gedparse_person_link($id_number) {
+    $record = gedparse_get_record('INDI', $id_number) ;
+
+    $person_link = array(
+      'href' => 'family/' . $id_number ,
+    ) ;
+
+    // check if the person's record is restricted
+    $privacy = strpos($record, 'RESN privacy') ;
+    if ($privacy !== FALSE) {
+      $person_link['title'] = 'Name withheld' ;
+    }
+
+    else {
+      preg_match('~1 NAME (.+?)$~m', $record, $matches) ;
+      $name = $matches ? $matches[1] : 'Name unknown' ;
+
+      preg_match('~^1 BIRT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
+      $birth = $matches ? $matches[1] : '?' ;
+
+      preg_match('~^1 DEAT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
+      $death = $matches ? $matches[1] : '?' ;
+
+      $person_link['title'] = gedparse_clean_name($name) ;
+      $person_link['title'] .= ' (' . $birth . '–' . $death . ')' ;
+    }
+
+    return $person_link ;
+  }
 
 /**
  * Get an exploded array of records from the flat GEDCOM file.
@@ -503,6 +581,44 @@ function gedparse_get_record($type, $record_number) {
   $matches = array_values($matches) ;
 
   return($matches[0]) ;
+}
+
+
+/**
+ * Retrieve the INDI numbers of all members for a given family
+ *
+ * Takes a family id number as 1st argument
+ * Takes a relationship (parent, spouse, sibling) as 2nd argument
+ * Takes the selected person's id number as an optional 3rd arg
+ *
+ * Returns an array of the partners' id numbers
+ */
+function gedparse_get_family_members($family_number, $relationship, $selected_person = NULL) {
+  // init an array to hold the spouse id numbers
+  $family_members = array() ;
+
+  $family_record = gedparse_get_record('FAM', $family_number) ;
+
+  $family_parts = explode("\n1 ", $family_record) ;
+
+  foreach($family_parts as $person){
+    if ($relationship == 'parents' || $relationship == 'partners') {
+      preg_match("~[HUSB|WIFE] @I(\d+)@~", $person, $matches) ;
+    }
+
+    // if we found family members...
+    if ($matches) {
+      // only add them to array if either: (1) we didn't pass an id number
+      // [which means we're looking for parents, so want both]
+      // of (2) the id number arg isn't the same as the family member
+      // [because we we're looking for partners]
+      if (!$selected_person || $selected_person != $matches[1]) {
+       $family_members[] = $matches[1] ;
+      }
+    }
+  }
+
+  return $family_members ;
 }
 
 /**
