@@ -3,7 +3,7 @@ description = Generates dynamic web pages from a GEDCOM file.
 
 package = etg Modules
 core = 7.x
-version = 7.x-0.1
+version = 7.x-0.5
 
 configure = admin/config/gedparse
 
