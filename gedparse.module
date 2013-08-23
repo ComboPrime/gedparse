@@ -4,6 +4,7 @@
  * Gedparse dynamically generates genealogy web pages from a GEDCOM file.
  */
 
+
 /**
  * Implements hook_help().
  */
@@ -300,6 +301,8 @@ function gedparse_display_person($indi_number) {
   }
 
 	$main_name = array_shift($names) ;
+
+  // need to clean this up
 	$title = $main_name['#full_name'] ;
 	drupal_set_title($title) ;
 
@@ -354,7 +357,7 @@ function gedparse_display_person($indi_number) {
 	 $output['partners'] = array(
       '#theme' => 'links',
       '#heading' => t('Partners'),
-      '#markup' => t('(Select a partner to display information on their union)'),
+      '#' => t('(Select a partner to display information on their union)'),
       '#links' => $partners,
     ) ;
   }
@@ -518,10 +521,10 @@ function theme_gedparse_name($variables) {
       $name = $matches ? $matches[1] : 'Name unknown' ;
 
       preg_match('~^1 BIRT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
-      $birth = $matches ? $matches[1] : '?' ;
+      $birth = $matches ? $matches[1] : ' ' ;
 
       preg_match('~^1 DEAT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
-      $death = $matches ? $matches[1] : '?' ;
+      $death = $matches ? $matches[1] : ' ' ;
 
       $person_link['title'] = gedparse_clean_name($name) ;
       $person_link['title'] .= ' (' . $birth . '–' . $death . ')' ;
@@ -536,12 +539,28 @@ function theme_gedparse_name($variables) {
  * Use Drupal's Cache API to improve performance.
  */
 function gedparse_get_all_records() {
+
+
   // First check if the exploded array is already cached.
   // If not, create and cache it.
   if (!$all_records = cache_get('Gedparse:all_records', 'cache')) {
     // The user should have set this location in /admin/config/Gedparse
     $file = variable_get('gedparse_db_location') ;
-    $fh = fopen($file, 'r') or die($php_errormsg);
+
+    // Display a custom error message and redirect to home page
+    // if the GEDCOM file can't be found.
+    try {
+      $fh = fopen($file, 'r') ;
+
+      if ($fh === FALSE) {
+        throw new Exception('Cannot open GEDCOM file') ;
+      }
+    }
+
+     catch (Exception $e) {
+      drupal_set_message('Cannot open GEDCOM file! Please check Gedparse configuration.') ;
+      drupal_goto() ;
+     }
 
     // Read the entire file
     $gedcom = fread($fh, filesize($file));
@@ -611,7 +630,7 @@ function gedparse_get_family_members($family_number, $relationship, $selected_pe
       // only add them to array if either: (1) we didn't pass an id number
       // [which means we're looking for parents, so want both]
       // of (2) the id number arg isn't the same as the family member
-      // [because we we're looking for partners]
+      // [because we we're looking for partners or siblings]
       if (!$selected_person || $selected_person != $matches[1]) {
        $family_members[] = $matches[1] ;
       }
