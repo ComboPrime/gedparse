@@ -21,8 +21,8 @@ function gedparse_menu() {
   $items = array();
 
   $items['admin/config/Gedparse'] = array(
-    'title' => t('Configure Gedparse'),
-    'description' => t('Configure settings for the Gedparse module.'),
+    'title' => 'Configure Gedparse',
+    'description' => 'Configure settings for the Gedparse module.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('gedparse_admin'),
     'access arguments' => array('access administration pages'),
@@ -41,7 +41,7 @@ function gedparse_menu() {
 }
 
 /**
- * Callback function to create the admin config page
+ * Callback function to create the admin config page.
  */
 function gedparse_admin() {
   $form = array();
@@ -71,7 +71,7 @@ function gedparse_admin() {
 }
 
 /**
- * Callback function to display a person
+ * Callback function to display a person.
  */
 function gedparse_display_person($indi_number) {
   // set up array for later output
@@ -126,17 +126,17 @@ function gedparse_display_person($indi_number) {
   // Records are not restricted by default
   $restricted = FALSE ;
 
-  $parent_family_id = '' ;
   $parents = array() ;
   $names = array() ;
   $events = array() ;
   $notes = array() ;
   $links = array() ;
   $partners = array() ;
+  $siblings = array() ;
 
   // iterate through all the record items, sorting into the arrays and
   // theming if necessary
-  foreach($items as $item) {
+  foreach ($items as $item) {
     if (strpos($item, '@') === 0) {
       // only here so we can use 'else' at end as a catch-all bucket
     }
@@ -146,26 +146,34 @@ function gedparse_display_person($indi_number) {
     }
 
     elseif (strpos($item, 'FAMC') === 0) {
-      preg_match('@F(\d+)@i',$item, $matches);
+      preg_match('@F(\d+)@i', $item, $matches);
 
-      $family_id_numbers = gedparse_get_family_members($matches[1], 'parents') ;
+      $parent_id_numbers = gedparse_get_family_members($matches[1], 'parents') ;
 
-      foreach($family_id_numbers as $id_number) {
-       $parent = gedparse_person_link($id_number) ;
+      foreach ($parent_id_numbers as $id_number) {
+        $parent = gedparse_person_link($id_number) ;
 
-       $parents[] = $parent ;
+        $parents[] = $parent ;
+      }
+
+      $sibling_id_numbers = gedparse_get_family_members($matches[1], 'siblings', $indi_number) ;
+
+      foreach ($sibling_id_numbers as $id_number) {
+        $sibling = gedparse_person_link($id_number) ;
+
+        $siblings[] = $sibling ;
       }
     }
 
     elseif (strpos($item, 'FAMS') === 0) {
-      preg_match('@F(\d+)@i',$item, $matches);
+      preg_match('@F(\d+)@i', $item, $matches);
 
-      $family_id_numbers = gedparse_get_family_members($matches[1], 'partners', $indi_number) ;
+      $partner_id_numbers = gedparse_get_family_members($matches[1], 'partners', $indi_number) ;
 
-      foreach($family_id_numbers as $id_number) {
-       $partner = gedparse_person_link($id_number) ;
+      foreach ($partner_id_numbers as $id_number) {
+      $partner = gedparse_person_link($id_number) ;
 
-       $partners[] = $partner ;
+      $partners[] = $partner ;
       }
     }
 
@@ -183,59 +191,61 @@ function gedparse_display_person($indi_number) {
 
     elseif (strpos($item, 'NAME') === 0) {
       // need to run through clean_names
-     $name = array(
+      $name = array(
         '#theme' => 'gedparse_name',
+        '#html_open' => NULL,
+        '#html_close' => NULL,
         '#npfx' => NULL,
         '#full_name' => NULL,
         '#nsfx' => NULL,
         '#nick' => NULL,
-        '#notes' => array(
-        	'#theme' => 'item_list',
-					'#type' => 'ul',
-					'#items' => NULL,
-        ),
+        '#notes' => NULL,
       ) ;
 
-			$name_parts = explode("\n2 ", $item) ;
+      $name_parts = explode("\n2 ", $item) ;
 
-			foreach($name_parts as $part) {
-				if (strpos($part, 'NPFX') === 0) {
-					$name['#npfx'] = substr($part, 4) ;
-				}
+      foreach ($name_parts as $part) {
+        if (strpos($part, 'NPFX') === 0) {
+          $name['#npfx'] = substr($part, 4) ;
+        }
 
-				elseif (strpos($part, 'NAME') === 0) {
-					$name['#full_name'] = substr($part, 4) ;
-				}
+        elseif (strpos($part, 'NAME') === 0) {
+          $name['#full_name'] = substr($part, 4) ;
+        }
 
-				elseif (strpos($part, 'NSFX') === 0) {
-					$name['#nsfx'] = substr($part, 4) ;
-				}
+        elseif (strpos($part, 'NSFX') === 0) {
+          $name['#nsfx'] = substr($part, 4) ;
+        }
 
-				elseif (strpos($part, 'NICK') === 0) {
-					$name['#nick'] = substr($part, 4) ;
-				}
+        elseif (strpos($part, 'NICK') === 0) {
+          $name['#nick'] = substr($part, 4) ;
+        }
 
-				elseif (strpos($part, 'NOTE') === 0) {
-					$name['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
-				}
-			}
+        elseif (strpos($part, 'NOTE') === 0) {
+          $name['#notes'] = array(
+            '#theme' => 'item_list',
+            '#type' => 'ul',
+            '#items' => gedparse_concatenate(substr($part, 4)),
+          ) ;
+        }
+      }
 
-			$names[] = $name ;
-		}
+      $names[] = $name ;
+    }
 
     elseif (strpos($item, 'NOTE') === 0) {
       $notes[] = gedparse_concatenate(substr($item, 4)) ;
     }
 
-   elseif (strpos($item, 'OBJE') === 0) {
-		$obje = array(
-			'href' => NULL,
-			'title' => NULL,
-		) ;
+  elseif (strpos($item, 'OBJE') === 0) {
+    $obje = array(
+      'href' => NULL,
+      'title' => NULL,
+    ) ;
 
-     $item_parts = explode("\n2 ", $item) ;
+    $item_parts = explode("\n2 ", $item) ;
 
-     foreach($item_parts as $part) {
+    foreach ($item_parts as $part) {
         if (strpos($part, 'FILE') === 0) {
           $obje['href'] = substr($part, 4) ;
         }
@@ -258,17 +268,17 @@ function gedparse_display_person($indi_number) {
         '#caus' => NULL,
         '#info' => NULL,
         '#notes' => array(
-        	'#theme' => 'item_list',
-					'#type' => 'ul',
-					'#items' => NULL,
+          '#theme' => 'item_list',
+          '#type' => 'ul',
+          '#items' => NULL,
         ),
       ) ;
 
-     $item_parts = explode("\n2 ", $item) ;
+    $item_parts = explode("\n2 ", $item) ;
 
-     $event['#label'] = $gedparse_event_list[array_shift($item_parts)] ;
+    $event['#label'] = $gedparse_event_list[array_shift($item_parts)] ;
 
-      foreach($item_parts as $part) {
+      foreach ($item_parts as $part) {
         if (strpos($part, 'TYPE') === 0) {
           if ($event['#label'] == 'Occupation') {
             $event['#info'] = substr($part, 4) ;
@@ -291,52 +301,58 @@ function gedparse_display_person($indi_number) {
           $event['#caus'] = substr($part, 4) ;
         }
 
-				elseif (strpos($part, 'NOTE') === 0) {
-					$event['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
-				}
+        elseif (strpos($part, 'NOTE') === 0) {
+          $event['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
+        }
       }
 
       $events[] = $event ;
     }
   }
 
-	$main_name = array_shift($names) ;
+  // need to change the first name item to be a header
+  $names[0]['#html_open'] = '' ;
+  $names[0]['#html_close'] = '' ;
 
-  // need to clean this up
-	$title = $main_name['#full_name'] ;
-	drupal_set_title($title) ;
+  // now theme the first name and use the rendered HTML for the title
+  $title = drupal_render($names[0]) ;
+
+  drupal_set_title($title) ;
+
+  // need to unset the #printed and #children flags after rendering
+  // since we will use $names[0] again; also need
+  // to set the first name item to be a header
+  unset($names[0]['#printed']) ;
+  unset($names[0]['#children']) ;
+  $names[0]['#html_open'] = '<h2>' ;
+  $names[0]['#html_close'] = '</h2>' ;
 
   $output =  array(
-	 'gender' => array(
+   'gender' => array(
       '#type' => 'markup',
       '#markup' => $gender,
       '#prefix' => '<p>Gender: ',
       '#suffix' => '</p>',
     ),
-	 'parents' => array(
+   'parents' => array(
       '#theme' => 'links',
       '#heading' => t('Parents'),
       '#links' => $parents,
     ),
-   'headshot' => array(
+  'headshot' => array(
       '#theme' => 'image',
+      // should use configured folder location
       '#path' => 'sites/etgdesign.com/files/headshots/indi' . $indi_number . '.jpg',
       '#width' => '75px',
       '#height' => '100px',
-      '#alt' => 'Portrait of ' . $main_name ,
+      '#alt' => 'Portrait of ' . $title ,
     ),
-//     'main_name' = array(
-//     	'#theme' => 'gedparse_name',
-//     	'#name' => $main_name,
-//     	'#prefix' => '<h2>',
-//     	'#suffix' => '</h2>',
-//     ),
-    'other_names' => $names,
+    'names' => $names,
     'events' => $events,
   ) ;
 
   if ($notes) {
-  	$output['notes'] = array(
+    $output['notes'] = array(
       '#theme' => 'item_list',
       '#title' => t('Notes'),
       '#type' => 'ul',
@@ -345,7 +361,7 @@ function gedparse_display_person($indi_number) {
   }
 
   if ($links) {
-  	$output['links'] = array(
+    $output['links'] = array(
       '#theme' => 'links',
       '#heading' => t('Related Links'),
       // should be h3, not h2
@@ -354,34 +370,43 @@ function gedparse_display_person($indi_number) {
   }
 
   if ($partners) {
-	 $output['partners'] = array(
+    $output['partners'] = array(
       '#theme' => 'links',
       '#heading' => t('Partners'),
-      '#' => t('(Select a partner to display information on their union)'),
+      '#suffix' => t('<p class="partner-disclaimer">(Select a partner to display information on their union)</p>'),
       '#links' => $partners,
     ) ;
   }
-  // only for debugging purposes
-//   $output['items'] = array(
-//     '#theme' => 'item_list',
-//     '#title' => t('Items'),
-//     '#type' => 'ul',
-//     '#items' => $items,
-//   ) ;
 
-		// only for debugging purposes
-//     'whole_record' => array(
+  if ($siblings) {
+    $output['siblings'] = array(
+      '#theme' => 'links',
+      '#heading' => t('Siblings'),
+      '#links' => $siblings,
+    ) ;
+  }
+
+// only for debugging purposes
+//  $output['items'] = array(
+//    '#theme' => 'item_list',
+//    '#title' => t('Items'),
+//    '#type' => 'ul',
+//    '#items' => $items,
+//  ) ;
+
+// only for debugging purposes
+//    $output['whole_record'] = array(
 //       '#type' => 'markup',
 //       '#markup' => $flat_record,
 //       '#prefix' => '<pre>',
 //       '#suffix' => '</pre>',
-//     ),
+//    ) ;
 
   return $output;
 }
 
 /**
- * Validate the user-entered Gedparse settings
+ * Validate the user-entered Gedparse settings.
  */
 function gedparse_admin_validate($form, &$form_state) {
   $gedparse_db_location = $form_state['values']['gedparse_db_location'];
@@ -396,7 +421,7 @@ function gedparse_admin_validate($form, &$form_state) {
 }
 
 /**
- * Implements hook_theme()
+ * Implements hook_theme().
  */
 function gedparse_theme() {
   return array(
@@ -414,6 +439,8 @@ function gedparse_theme() {
 
     'gedparse_name' => array(
       'variables' => array(
+        'html_open' => '<p><em>(',
+        'html_close' => ')</em></p>',
         'npfx' => NULL,
         'full_name' => NULL,
         'nsfx' => NULL,
@@ -435,7 +462,7 @@ function theme_gedparse_event($variables) {
   }
 
   elseif ($variables['label']) {
-     $output .= $variables['label'] . '</em> ';
+    $output .= $variables['label'] . '</em> ';
   }
 
   elseif ($variables['type']) {
@@ -474,8 +501,8 @@ function theme_gedparse_event($variables) {
 
   $output .= '</p>' ;
 
-	// Also get Drupal to render HTML for a list of notes
-	$output .= drupal_render($variables['notes']) ;
+  // Also get Drupal to render HTML for a list of notes
+  $output .= drupal_render($variables['notes']) ;
 
   return $output ;
 }
@@ -485,24 +512,25 @@ function theme_gedparse_event($variables) {
  * Custom theme function for names
  */
 function theme_gedparse_name($variables) {
-	// build the name by checking for each part in the array and adding
-	// to the output string
-	$output = "\n\n<p><em>(" ;
+  // build the name by checking for each part in the array and adding
+  // to the output string
+
+  $output = "\n\n" . $variables['html_open'] ;
   $output .= $variables['npfx'] ? $variables['npfx'] : '' ;
-  $output .= $variables['full_name'] ? $variables['full_name'] : 'Name unknown' ;
+  $output .= $variables['full_name'] ? gedparse_clean_name($variables['full_name']) : 'Name unknown' ;
   $output .= $variables['nsfx'] ? ', ' . $variables['nsfx'] : '' ;
   $output .= $variables['nick'] ? ', “' . $variables['nick'] . '”' : '' ;
-	$output .= ")</em></p>" ;
+  $output .= $variables['html_close'] ;
 
-	// Also get Drupal to render HTML for a list of notes
-	$output .= drupal_render($variables['notes']) ;
+  // Also get Drupal to render HTML for a list of notes
+  $output .= drupal_render($variables['notes']) ;
 
   return $output ;
 }
 
   /**
-   * Custom theme function for a person's name that links to their record
-   */
+  * Custom theme function for a person's name that links to their record
+  */
   function gedparse_person_link($id_number) {
     $record = gedparse_get_record('INDI', $id_number) ;
 
@@ -557,10 +585,10 @@ function gedparse_get_all_records() {
       }
     }
 
-     catch (Exception $e) {
-      drupal_set_message('Cannot open GEDCOM file! Please check Gedparse configuration.') ;
+    catch (Exception $e) {
+      drupal_set_message(t('Cannot open GEDCOM file! Please check Gedparse configuration.'), 'warning') ;
       drupal_goto() ;
-     }
+    }
 
     // Read the entire file
     $gedcom = fread($fh, filesize($file));
@@ -574,7 +602,7 @@ function gedparse_get_all_records() {
 
     // And return it
     return $all_records ;
- }
+  }
 
   // If it IS in the cache, get it
   else {
@@ -594,12 +622,12 @@ function gedparse_get_all_records() {
 function gedparse_get_record($type, $record_number) {
   $all_records = gedparse_get_all_records() ;
 
-  $matches =  preg_grep('/^@[IF]'.$record_number.'@ '.$type.'/', $all_records) ;
+  $matches = preg_grep('/^@[IF]' . $record_number . '@ ' . $type . '/', $all_records) ;
 
   // by default, preg_grep retains the input array's keys, so need to reset keys.
   $matches = array_values($matches) ;
 
-  return($matches[0]) ;
+  return $matches[0] ;
 }
 
 
@@ -617,12 +645,16 @@ function gedparse_get_family_members($family_number, $relationship, $selected_pe
   $family_members = array() ;
 
   $family_record = gedparse_get_record('FAM', $family_number) ;
-
   $family_parts = explode("\n1 ", $family_record) ;
 
-  foreach($family_parts as $person){
+  foreach ($family_parts as $person) {
     if ($relationship == 'parents' || $relationship == 'partners') {
       preg_match("~[HUSB|WIFE] @I(\d+)@~", $person, $matches) ;
+    }
+
+    // if not parents or partners, must be siblings
+    else {
+      preg_match("~[CHIL] @I(\d+)@~", $person, $matches) ;
     }
 
     // if we found family members...
@@ -632,7 +664,7 @@ function gedparse_get_family_members($family_number, $relationship, $selected_pe
       // of (2) the id number arg isn't the same as the family member
       // [because we we're looking for partners or siblings]
       if (!$selected_person || $selected_person != $matches[1]) {
-       $family_members[] = $matches[1] ;
+        $family_members[] = $matches[1] ;
       }
     }
   }
@@ -644,17 +676,17 @@ function gedparse_get_family_members($family_number, $relationship, $selected_pe
  * Removes slashes from names
  */
 function gedparse_clean_name($name) {
-	$name = str_replace('/', '', $name) ;
-	return $name ;
+  $name = str_replace('/', '', $name) ;
+
+  return $name ;
 }
 
 /**
  * Removes CONC/CONT tags and connects lines
  */
 function gedparse_concatenate($text) {
-	$text = preg_replace("/\n\d+? CONC/", " ", $text) ;
-	$text = preg_replace("/\n\d+? CONT/", "<br>", $text) ;
-	return $text;
+  $text = preg_replace("/\n\d+? CONC/", " ", $text) ;
+  $text = preg_replace("/\n\d+? CONT/", "<br>", $text) ;
+
+  return $text;
 }
-
-
