@@ -190,7 +190,6 @@ function gedparse_display_person($indi_number) {
     }
 
     elseif (strpos($item, 'NAME') === 0) {
-      // need to run through clean_names
       $name = array(
         '#theme' => 'gedparse_name',
         '#html_open' => NULL,
@@ -199,7 +198,11 @@ function gedparse_display_person($indi_number) {
         '#full_name' => NULL,
         '#nsfx' => NULL,
         '#nick' => NULL,
-        '#notes' => NULL,
+        '#notes' => array(
+          '#theme' => 'item_list',
+          '#type' => 'ul',
+          '#items' => NULL,
+        ),
       ) ;
 
       $name_parts = explode("\n2 ", $item) ;
@@ -222,11 +225,7 @@ function gedparse_display_person($indi_number) {
         }
 
         elseif (strpos($part, 'NOTE') === 0) {
-          $name['#notes'] = array(
-            '#theme' => 'item_list',
-            '#type' => 'ul',
-            '#items' => gedparse_concatenate(substr($part, 4)),
-          ) ;
+          $name['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
         }
       }
 
@@ -237,15 +236,15 @@ function gedparse_display_person($indi_number) {
       $notes[] = gedparse_concatenate(substr($item, 4)) ;
     }
 
-  elseif (strpos($item, 'OBJE') === 0) {
-    $obje = array(
-      'href' => NULL,
-      'title' => NULL,
-    ) ;
+    elseif (strpos($item, 'OBJE') === 0) {
+      $obje = array(
+        'href' => NULL,
+        'title' => NULL,
+      ) ;
 
-    $item_parts = explode("\n2 ", $item) ;
+      $item_parts = explode("\n2 ", $item) ;
 
-    foreach ($item_parts as $part) {
+      foreach ($item_parts as $part) {
         if (strpos($part, 'FILE') === 0) {
           $obje['href'] = substr($part, 4) ;
         }
@@ -310,20 +309,12 @@ function gedparse_display_person($indi_number) {
     }
   }
 
-  // need to change the first name item to be a header
-  $names[0]['#html_open'] = '' ;
-  $names[0]['#html_close'] = '' ;
-
   // now theme the first name and use the rendered HTML for the title
-  $title = drupal_render($names[0]) ;
+  $title = gedparse_build_name($names[0]) ;
 
   drupal_set_title($title) ;
 
-  // need to unset the #printed and #children flags after rendering
-  // since we will use $names[0] again; also need
-  // to set the first name item to be a header
-  unset($names[0]['#printed']) ;
-  unset($names[0]['#children']) ;
+  // need  to set the first name item to be a header
   $names[0]['#html_open'] = '<h2>' ;
   $names[0]['#html_close'] = '</h2>' ;
 
@@ -516,9 +507,7 @@ function theme_gedparse_name($variables) {
   // to the output string
 
   $output = "\n\n" . $variables['html_open'] ;
-  $output .= $variables['npfx'] ? $variables['npfx'] : '' ;
-  $output .= $variables['full_name'] ? gedparse_clean_name($variables['full_name']) : 'Name unknown' ;
-  $output .= $variables['nsfx'] ? ', ' . $variables['nsfx'] : '' ;
+  $output .= gedparse_build_name($variables) ;
   $output .= $variables['nick'] ? ', “' . $variables['nick'] . '”' : '' ;
   $output .= $variables['html_close'] ;
 
@@ -546,7 +535,13 @@ function theme_gedparse_name($variables) {
 
     else {
       preg_match('~1 NAME (.+?)$~m', $record, $matches) ;
-      $name = $matches ? $matches[1] : 'Name unknown' ;
+      $name['full_name'] = $matches ? $matches[1] : 'Name unknown' ;
+
+      preg_match('~NPFX (.+?)$~m', $record, $matches) ;
+      $name['npfx'] = $matches ? $matches[1] : '' ;
+
+      preg_match('~NSFX (.+?)$~m', $record, $matches) ;
+      $name['nsfx'] = $matches ? $matches[1] : '' ;
 
       preg_match('~^1 BIRT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
       $birth = $matches ? $matches[1] : ' ' ;
@@ -554,7 +549,7 @@ function theme_gedparse_name($variables) {
       preg_match('~^1 DEAT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
       $death = $matches ? $matches[1] : ' ' ;
 
-      $person_link['title'] = gedparse_clean_name($name) ;
+      $person_link['title'] = gedparse_build_name($name) ;
       $person_link['title'] .= ' (' . $birth . '–' . $death . ')' ;
     }
 
@@ -673,12 +668,37 @@ function gedparse_get_family_members($family_number, $relationship, $selected_pe
 }
 
 /**
- * Removes slashes from names
+ * Combine all the parts of the name array and removes any slashes
  */
-function gedparse_clean_name($name) {
-  $name = str_replace('/', '', $name) ;
+function gedparse_build_name($name) {
 
-  return $name ;
+	drupal_set_message(dprint_r($name)) ;
+	
+  // unthemed names use a hashmark in the array keys;
+  // themed names don't. So need to generate hashed keys first.
+  if ($name['full_name']) {
+  	$name['#full_name'] = $name['full_name'] ;
+  }
+
+  if ($name['npfx']) {
+  	$name['#npfx'] = $name['npfx'] ;
+  }
+
+  if ($name['nsfx']) {
+  	$name['#nsfx'] = $name['nsfx'] ;
+  }
+
+	drupal_set_message(dprint_r($name)) ;
+
+
+
+  $output = $name['#npfx'] ? $name['#npfx'] . ' ' : '' ;
+  $output .= $name['#full_name'] ?: 'Name unknown' ;
+  $output .= $name['#nsfx'] ? ' ' . $name['#nsfx'] : '' ;
+
+  $output = str_replace('/', '', $output) ;
+
+  return $output ;
 }
 
 /**
