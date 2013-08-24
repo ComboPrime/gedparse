@@ -1,24 +1,21 @@
+/* GEDPARSE DISPLAY STYLES */
 
-/* Field display */
-.field .field-label {
-  font-weight: bold;
-}
-
-/* Form display */
-form .field-multiple-table {
-  margin: 0;
-}
-form .field-multiple-table th.field-label {
-  padding-left: 0; /*LTR*/
-}
-form .field-multiple-table td.field-multiple-drag {
-  width: 30px;
-  padding-right: 0; /*LTR*/
-}
-form .field-multiple-table td.field-multiple-drag a.tabledrag-handle {
-  padding-right: .5em; /*LTR*/
+.gedparse .selected {
+ -webkit-border-radius: 0.5rem;
+ -moz-border-radius: 0.5rem;
+ border-radius: 0.5rem;
+ padding: 0.5rem 1.5rem;
 }
 
-form .field-add-more-submit {
-  margin: .5em 0 0;
+.gedparse .gender-f {
+  background-color: rgba(255, 200, 200, 0.25) ;
+}
+
+.gedparse .gender-m {
+  background-color: rgba(200, 200, 255, 0.25) ;
+}
+
+.gedparse img {
+  float: right;
+  margin: 0 0 2em 2em;
 }

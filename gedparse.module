@@ -73,7 +73,7 @@ function gedparse_admin() {
 /**
  * Callback function to display a person.
  */
-function gedparse_display_person($indi_number) {
+function gedparse_display_person($indi_number, $selected = TRUE) {
   // set up array for later output
   $gedparse_event_list = array(
     'BIRT' => 'Born',
@@ -120,12 +120,16 @@ function gedparse_display_person($indi_number) {
   // Explode flat_record to get array of separate items
   $items = explode("\n1 ", $flat_record) ;
 
-  // create some variables for each kind of item
+  // set a CSS class based on gender
   $gender = '' ;
 
   // Records are not restricted by default
   $restricted = FALSE ;
 
+  // Display a partner?
+  $display_partner = FALSE ;
+
+  // Render arrays
   $parents = array() ;
   $names = array() ;
   $events = array() ;
@@ -170,6 +174,12 @@ function gedparse_display_person($indi_number) {
 
       $partner_id_numbers = gedparse_get_family_members($matches[1], 'partners', $indi_number) ;
 
+      // if the selected person has exactly 1 partner,
+      // go ahead and display that person alongside.
+      if ($selected && count($partner_id_numbers) == 1) {
+        $display_partner = gedparse_display_person($partner_id_numbers[0], FALSE) ;
+      }
+
       foreach ($partner_id_numbers as $id_number) {
       $partner = gedparse_person_link($id_number) ;
 
@@ -186,7 +196,11 @@ function gedparse_display_person($indi_number) {
     }
 
     elseif (strpos($item, 'SEX') === 0) {
-      $gender = substr($item, 3) ;
+      // get M/m or F/f from the file, convert to lowercase,
+      // and use that as the array key to get a class name.
+      $gender = 'gender-' . strtolower(substr($item, 3)) ;
+      // another nasty space added, so kill it
+      $gender = str_replace(' ', '', $gender) ;
     }
 
     elseif (strpos($item, 'NAME') === 0) {
@@ -309,8 +323,8 @@ function gedparse_display_person($indi_number) {
     }
   }
 
-  // now theme the first name and use the rendered HTML for the title
-  $title = gedparse_build_name($names[0]) ;
+  // now build the first name and use for the title
+  $title = gedparse_build_name($names[0], FALSE) ;
 
   drupal_set_title($title) ;
 
@@ -319,12 +333,6 @@ function gedparse_display_person($indi_number) {
   $names[0]['#html_close'] = '</h2>' ;
 
   $output =  array(
-   'gender' => array(
-      '#type' => 'markup',
-      '#markup' => $gender,
-      '#prefix' => '<p>Gender: ',
-      '#suffix' => '</p>',
-    ),
    'parents' => array(
       '#theme' => 'links',
       '#heading' => t('Parents'),
@@ -360,7 +368,8 @@ function gedparse_display_person($indi_number) {
     ) ;
   }
 
-  if ($partners) {
+  // only show partners list if more than one
+  if (count($partners) > 1) {
     $output['partners'] = array(
       '#theme' => 'links',
       '#heading' => t('Partners'),
@@ -393,7 +402,17 @@ function gedparse_display_person($indi_number) {
 //       '#suffix' => '</pre>',
 //    ) ;
 
-  return $output;
+  $html = drupal_render($output) ;
+
+  if ($display_partner) {
+    $partner = drupal_render($display_partner) ;
+  }
+
+  return theme('gedparse_display', array(
+    'html' => $html,
+    'partner' => $display_partner,
+    'gender' => $gender,
+  )) ;
 }
 
 /**
@@ -411,11 +430,22 @@ function gedparse_admin_validate($form, &$form_state) {
   }
 }
 
+
+/**
+ * Theming functions
+ *
+ */
+
 /**
  * Implements hook_theme().
  */
 function gedparse_theme() {
   return array(
+    'gedparse_display' => array(
+      'variables' => array('html' => NULL, 'gender' => NULL, 'partner' => NULL,),
+      'template' => 'gedparse_display',
+    ),
+
     'gedparse_event' => array(
       'variables' => array(
         'label' => NULL,
@@ -443,7 +473,22 @@ function gedparse_theme() {
 }
 
 /**
- * Custom theme function for event items
+ * Add custom CSS.
+ */
+function gedparse_preprocess_gedparse_display(&$vars) {
+  drupal_add_css(drupal_get_path('module', 'gedparse') . '/gedparse.css');
+}
+
+
+/**
+ * Custom theme function for page display.
+ */
+function theme_gedparse_display($variables) {
+  return $variables ;
+}
+
+/**
+ * Custom theme function for event items.
  */
 function theme_gedparse_event($variables) {
   $output = "\n\n<p><em>" ;
@@ -500,16 +545,17 @@ function theme_gedparse_event($variables) {
 
 
 /**
- * Custom theme function for names
+ * Custom theme function for names.
  */
 function theme_gedparse_name($variables) {
-  // build the name by checking for each part in the array and adding
-  // to the output string
-
   $output = "\n\n" . $variables['html_open'] ;
   $output .= gedparse_build_name($variables) ;
   $output .= $variables['nick'] ? ', “' . $variables['nick'] . '”' : '' ;
   $output .= $variables['html_close'] ;
+
+  // clean up extra spaces
+  $output = str_replace('“ ', '“', $output) ;
+  $output = str_replace('( ', '(', $output) ;
 
   // Also get Drupal to render HTML for a list of notes
   $output .= drupal_render($variables['notes']) ;
@@ -518,7 +564,7 @@ function theme_gedparse_name($variables) {
 }
 
   /**
-  * Custom theme function for a person's name that links to their record
+  * Custom theme function for a person's name that links to their record.
   */
   function gedparse_person_link($id_number) {
     $record = gedparse_get_record('INDI', $id_number) ;
@@ -670,31 +716,21 @@ function gedparse_get_family_members($family_number, $relationship, $selected_pe
 /**
  * Combine all the parts of the name array and removes any slashes
  */
-function gedparse_build_name($name) {
+function gedparse_build_name($name, $themed=TRUE) {
 
-	drupal_set_message(dprint_r($name)) ;
-	
   // unthemed names use a hashmark in the array keys;
-  // themed names don't. So need to generate hashed keys first.
-  if ($name['full_name']) {
-  	$name['#full_name'] = $name['full_name'] ;
+  // themed names don't. So use $themed arg to distinguish.
+  if ($themed) {
+    $output = $name['npfx'] ? $name['npfx'] . ' ' : '' ;
+    $output .= $name['full_name'] ?: 'Name unknown' ;
+    $output .= $name['nsfx'] ? ' ' . $name['nsfx'] : '' ;
   }
 
-  if ($name['npfx']) {
-  	$name['#npfx'] = $name['npfx'] ;
+  else {
+    $output = $name['#npfx'] ? $name['#npfx'] . ' ' : '' ;
+    $output .= $name['#full_name'] ?: 'Name unknown' ;
+    $output .= $name['#nsfx'] ? ' ' . $name['#nsfx'] : '' ;
   }
-
-  if ($name['nsfx']) {
-  	$name['#nsfx'] = $name['nsfx'] ;
-  }
-
-	drupal_set_message(dprint_r($name)) ;
-
-
-
-  $output = $name['#npfx'] ? $name['#npfx'] . ' ' : '' ;
-  $output .= $name['#full_name'] ?: 'Name unknown' ;
-  $output .= $name['#nsfx'] ? ' ' . $name['#nsfx'] : '' ;
 
   $output = str_replace('/', '', $output) ;
 
