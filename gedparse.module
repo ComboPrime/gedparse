@@ -127,7 +127,8 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
   $restricted = FALSE ;
 
   // Display a partner?
-  $display_partner = FALSE ;
+  $display_partner_id = NULL ;
+  $display_partner_html = NULL ;
 
   // Render arrays
   $parents = array() ;
@@ -172,19 +173,15 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
     elseif (strpos($item, 'FAMS') === 0) {
       preg_match('@F(\d+)@i', $item, $matches);
 
-      $partner_id_numbers = gedparse_get_family_members($matches[1], 'partners', $indi_number) ;
+      $partner_id_number = gedparse_get_family_members($matches[1], 'partners', $indi_number) ;
 
-      // if the selected person has exactly 1 partner,
-      // go ahead and display that person alongside.
-      if ($selected && count($partner_id_numbers) == 1) {
-        $display_partner = gedparse_display_person($partner_id_numbers[0], FALSE) ;
+      // only want to save the first hit
+      if (!$display_partner_id) {
+        $display_partner_id = $partner_id_number[0] ;
       }
 
-      foreach ($partner_id_numbers as $id_number) {
-      $partner = gedparse_person_link($id_number) ;
-
+      $partner = gedparse_person_link($partner_id_number[0]) ;
       $partners[] = $partner ;
-      }
     }
 
     elseif (strpos($item, 'SSN') === 0) {
@@ -404,15 +401,25 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
 
   $html = drupal_render($output) ;
 
-  if ($display_partner) {
-    $partner = drupal_render($display_partner) ;
+  // if the selected person has exactly 1 partner,
+  // go ahead and display that person alongside.
+  if ($selected && count($partners) == 1) {
+    $display_partner_html = gedparse_display_person($display_partner_id, FALSE) ;
   }
 
-  return theme('gedparse_display', array(
-    'html' => $html,
-    'partner' => $display_partner,
-    'gender' => $gender,
-  )) ;
+  // send the selected person's output through the theme
+  if ($selected) {
+    return theme('gedparse_display', array(
+      'html' => $html,
+      'gender' => $gender,
+      'partner' => $display_partner_html,
+    )) ;
+  }
+
+  // but just return HTML for the displayed partner
+  else {
+    return $html ;
+  }
 }
 
 /**
