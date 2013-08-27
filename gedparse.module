@@ -544,6 +544,9 @@ function gedparse_theme() {
  */
 function gedparse_preprocess_gedparse_display(&$vars) {
   drupal_add_css(drupal_get_path('module', 'gedparse') . '/gedparse.css');
+  
+  // add configuration checkbox!
+  drupal_add_css(drupal_get_path('module', 'gedparse') . '/bootstrap-fluid-2-3-2.css');
 }
 
 
