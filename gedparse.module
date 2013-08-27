@@ -18,6 +18,7 @@ function gedparse_help($path, $arg) {
  * Implements hook_menu().
  */
 function gedparse_menu() {
+  $base_path = variable_get('gedparse_base_path','gedparse') ;
   $items = array();
 
   $items['admin/config/Gedparse'] = array(
@@ -29,10 +30,10 @@ function gedparse_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
-  $items['family/%'] = array(
+  $items[$base_path . '/show/%'] = array(
     //'title' => t('Family Tree Info'),
-    'page callback' => 'gedparse_display_person',
-    'page arguments' => array(1),
+    'page callback' => 'gedparse_display_page',
+    'page arguments' => array(2, 3),
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
   );
@@ -56,6 +57,14 @@ function gedparse_admin() {
     '#required' => TRUE,
   );
 
+  $form['gedparse_base_path'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Base path for displayed GEDparse pages'),
+    '#size' => 100,
+    '#maxlength' => 100,
+    '#default_value' => variable_get('gedparse_base_path','gedparse'),
+  );
+
   $form['gedparse_headshot_location'] = array(
     '#type' => 'textfield',
     '#title' => t('Location of your optional folder of headshots'),
@@ -69,6 +78,41 @@ function gedparse_admin() {
 
   return system_settings_form($form);
 }
+
+
+/**
+ * Callback function to display the person or couple page
+ */
+function gedparse_display_page($selected_number, $partner_number) {
+  $selected_variables = gedparse_display_person($selected_number) ;
+  $title = $selected_variables['full_name'] ;
+  $partner_variables = array() ;
+
+  // if a partner id number was passed to the function,
+  // or if the selected person has exactly 1 partner,
+  // go ahead and display that person alongside.
+  if (!$partner_number && $selected_variables['display_partner']) {
+    $partner_number = $selected_variables['display_partner'] ;
+  }
+
+  $output_array = array(
+    'selected_html' => $selected_variables['html'],
+    'selected_gender_class' => $selected_variables['gender_class'],
+  ) ;
+
+  if ($partner_number) {
+    $partner_variables = gedparse_display_person($partner_number, FALSE) ;
+    $title .= ' & ' . $partner_variables['full_name'] ;
+
+    $output_array['partner_html'] = $partner_variables['html'] ;
+    $output_array['partner_gender_class'] = $partner_variables['gender_class'] ;
+  }
+
+  drupal_set_title($title) ;
+
+  return theme('gedparse_display', $output_array) ;
+}
+
 
 /**
  * Callback function to display a person.
@@ -121,14 +165,13 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
   $items = explode("\n1 ", $flat_record) ;
 
   // set a CSS class based on gender
-  $gender = '' ;
+  $gender_class = '' ;
 
   // Records are not restricted by default
   $restricted = FALSE ;
 
   // Display a partner?
   $display_partner_id = NULL ;
-  $display_partner_html = NULL ;
 
   // Render arrays
   $parents = array() ;
@@ -181,6 +224,15 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
       }
 
       $partner = gedparse_person_link($partner_id_number[0]) ;
+
+      if ($selected) {
+        $partner['href'] = preg_replace('~(\d+)$~', $indi_number. '/$1', $partner['href']) ;
+       }
+
+       else {
+         $partner['href'] .= '/' . $indi_number ;
+       }
+
       $partners[] = $partner ;
     }
 
@@ -195,9 +247,9 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
     elseif (strpos($item, 'SEX') === 0) {
       // get M/m or F/f from the file, convert to lowercase,
       // and use that as the array key to get a class name.
-      $gender = 'gender-' . strtolower(substr($item, 3)) ;
+      $gender_class = 'gender-' . strtolower(substr($item, 3)) ;
       // another nasty space added, so kill it
-      $gender = str_replace(' ', '', $gender) ;
+      $gender_class = str_replace(' ', '', $gender_class) ;
     }
 
     elseif (strpos($item, 'NAME') === 0) {
@@ -320,32 +372,44 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
     }
   }
 
-  // now build the first name and use for the title
-  $title = gedparse_build_name($names[0], FALSE) ;
-
-  drupal_set_title($title) ;
+  // grab the first name in the list to use for the title
+  $full_name = gedparse_build_name($names[0], FALSE) ;
 
   // need  to set the first name item to be a header
   $names[0]['#html_open'] = '<h2>' ;
   $names[0]['#html_close'] = '</h2>' ;
 
-  $output =  array(
-   'parents' => array(
+  // start collecting the renderable arrays
+  $output =  array() ;
+
+  if ($parents) {
+    $output['parents'] = array(
       '#theme' => 'links',
       '#heading' => t('Parents'),
       '#links' => $parents,
-    ),
-  'headshot' => array(
+    ) ;
+  }
+
+  else {
+    $output['parents'] = array(
+      '#markup' => t('Not in database'),
+      '#prefix' => '<h2>' . t('Parents') . '</h2><p>',
+      '#suffix' => '</p>',
+    ) ;
+  }
+
+  $output['headshot'] = array(
       '#theme' => 'image',
       // should use configured folder location
       '#path' => 'sites/etgdesign.com/files/headshots/indi' . $indi_number . '.jpg',
       '#width' => '75px',
       '#height' => '100px',
-      '#alt' => 'Portrait of ' . $title ,
-    ),
-    'names' => $names,
-    'events' => $events,
+      '#alt' => 'Portrait of ' . $full_name ,
   ) ;
+
+  $output['names'] = $names ;
+
+  $output['events'] = $events ;
 
   if ($notes) {
     $output['notes'] = array(
@@ -366,7 +430,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
   }
 
   // only show partners list if more than one
-  if (count($partners) > 1) {
+  if ($partners) {
     $output['partners'] = array(
       '#theme' => 'links',
       '#heading' => t('Partners'),
@@ -399,27 +463,18 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
 //       '#suffix' => '</pre>',
 //    ) ;
 
-  $html = drupal_render($output) ;
-
   // if the selected person has exactly 1 partner,
   // go ahead and display that person alongside.
-  if ($selected && count($partners) == 1) {
-    $display_partner_html = gedparse_display_person($display_partner_id, FALSE) ;
+  if (!$selected || count($partners) != 1) {
+    $display_partner_id = NULL ;
   }
 
-  // send the selected person's output through the theme
-  if ($selected) {
-    return theme('gedparse_display', array(
-      'html' => $html,
-      'gender' => $gender,
-      'partner' => $display_partner_html,
-    )) ;
-  }
-
-  // but just return HTML for the displayed partner
-  else {
-    return $html ;
-  }
+  return array(
+    'html' => drupal_render($output),
+    'full_name' => $full_name,
+    'display_partner' => $display_partner_id,
+    'gender_class' => $gender_class,
+  ) ;
 }
 
 /**
@@ -449,7 +504,12 @@ function gedparse_admin_validate($form, &$form_state) {
 function gedparse_theme() {
   return array(
     'gedparse_display' => array(
-      'variables' => array('html' => NULL, 'gender' => NULL, 'partner' => NULL,),
+      'variables' => array(
+        'selected_html' => NULL,
+        'selected_gender_class' => NULL,
+        'partner_html' => NULL,
+        'partner_gender_class' => NULL,
+      ),
       'template' => 'gedparse_display',
     ),
 
@@ -577,7 +637,7 @@ function theme_gedparse_name($variables) {
     $record = gedparse_get_record('INDI', $id_number) ;
 
     $person_link = array(
-      'href' => 'family/' . $id_number ,
+      'href' => variable_get('gedparse_base_path','gedparse') . '/show/' . $id_number ,
     ) ;
 
     // check if the person's record is restricted

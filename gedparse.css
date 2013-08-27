@@ -1,6 +1,7 @@
 /* GEDPARSE DISPLAY STYLES */
 
-.gedparse .selected {
+.gedparse .selected,
+.gedparse .partner {
  -webkit-border-radius: 0.5rem;
  -moz-border-radius: 0.5rem;
  border-radius: 0.5rem;
