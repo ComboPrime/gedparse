@@ -33,7 +33,7 @@ function gedparse_menu() {
   $items[$base_path . '/show/%'] = array(
     //'title' => t('Family Tree Info'),
     'page callback' => 'gedparse_display_page',
-    'page arguments' => array(2, 3),
+    'page arguments' => array(2, 3, 4),
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
   );
@@ -83,7 +83,7 @@ function gedparse_admin() {
 /**
  * Callback function to display the person or couple page
  */
-function gedparse_display_page($selected_number, $partner_number) {
+function gedparse_display_page($selected_number, $partner_number = NULL, $family_number = NULL) {
   $selected_variables = gedparse_display_person($selected_number) ;
   $title = $selected_variables['full_name'] ;
   $partner_variables = array() ;
@@ -103,6 +103,12 @@ function gedparse_display_page($selected_number, $partner_number) {
   if ($partner_number) {
     $partner_variables = gedparse_display_person($partner_number, FALSE) ;
     $title .= ' & ' . $partner_variables['full_name'] ;
+
+    if (!$family_number && $selected_variables['family_id']) {
+      $family_number = $selected_variables['family_id'] ;
+    }
+
+    $family_info = gedparse_get_record('FAM', $family_number) ;
 
     $output_array['partner_html'] = $partner_variables['html'] ;
     $output_array['partner_gender_class'] = $partner_variables['gender_class'] ;
@@ -173,6 +179,9 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
   // Display a partner?
   $display_partner_id = NULL ;
 
+  // If displaying a partner, need the family id number to grab family info
+  $family_id = NULL ;
+
   // Render arrays
   $parents = array() ;
   $names = array() ;
@@ -216,12 +225,16 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
     elseif (strpos($item, 'FAMS') === 0) {
       preg_match('@F(\d+)@i', $item, $matches);
 
-      $partner_id_number = gedparse_get_family_members($matches[1], 'partners', $indi_number) ;
+      // Save the family number in case we need it later.
+      // Ok if this gets overwritten, because that means
+      // there's more than one family, so we don't automatically
+      // display a family anyway.
+      $family_id = $matches[1] ;
 
-      // only want to save the first hit
-      if (!$display_partner_id) {
-        $display_partner_id = $partner_id_number[0] ;
-      }
+      $partner_id_number = gedparse_get_family_members($family_id, 'partners', $indi_number) ;
+
+      // also save the partner number.
+      $display_partner_id = $partner_id_number[0] ;
 
       $partner = gedparse_person_link($partner_id_number[0]) ;
 
@@ -229,9 +242,12 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
         $partner['href'] = preg_replace('~(\d+)$~', $indi_number. '/$1', $partner['href']) ;
        }
 
-       else {
+      else {
          $partner['href'] .= '/' . $indi_number ;
-       }
+      }
+
+      // append the family number so we can grab its info later
+      $partner['href'] .= '/' . $family_id ;
 
       $partners[] = $partner ;
     }
@@ -473,6 +489,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
     'html' => drupal_render($output),
     'full_name' => $full_name,
     'display_partner' => $display_partner_id,
+    'family_id' => $family_id,
     'gender_class' => $gender_class,
   ) ;
 }
@@ -544,7 +561,7 @@ function gedparse_theme() {
  */
 function gedparse_preprocess_gedparse_display(&$vars) {
   drupal_add_css(drupal_get_path('module', 'gedparse') . '/gedparse.css');
-  
+
   // add configuration checkbox!
   drupal_add_css(drupal_get_path('module', 'gedparse') . '/bootstrap-fluid-2-3-2.css');
 }
