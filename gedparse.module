@@ -104,14 +104,15 @@ function gedparse_display_page($selected_number, $partner_number = NULL, $family
     $partner_variables = gedparse_display_person($partner_number, FALSE) ;
     $title .= ' & ' . $partner_variables['full_name'] ;
 
+    $output_array['partner_html'] = $partner_variables['html'] ;
+    $output_array['partner_gender_class'] = $partner_variables['gender_class'] ;
+
     if (!$family_number && $selected_variables['family_id']) {
       $family_number = $selected_variables['family_id'] ;
     }
 
-    $family_info = gedparse_get_record('FAM', $family_number) ;
-
-    $output_array['partner_html'] = $partner_variables['html'] ;
-    $output_array['partner_gender_class'] = $partner_variables['gender_class'] ;
+    $family_info = gedparse_display_family($family_number) ;
+		$output_array['family_html'] = dprint_r($family_info) ;
   }
 
   drupal_set_title($title) ;
@@ -495,6 +496,170 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
 }
 
 /**
+ * Callback function to display a person.
+ */
+function gedparse_display_family($family_number) {
+  // set up array for later output
+  $gedparse_family_events = array(
+		'ANUL' => 'Annulled',
+		'CENS' => 'Census information',
+		'DIV ' => 'Divorced',
+		'DIVF' => 'Divorce filed',
+		'ENGA' => 'Engaged',
+		'MARR' => 'Married',
+		'MARB' => 'Banns posted',
+		'MARC' => 'Marriage contract',
+		'MARL' => 'Marriage license',
+		'MARS' => 'Marriage settlement',
+		'EVEN' => '',
+  );
+
+  // get the raw data
+  $flat_record = gedparse_get_record('FAM', $family_number) ;
+
+  // Explode flat_record to get array of separate items
+  $items = explode("\n1 ", $flat_record) ;
+
+  // Render array
+  $children = array() ;
+  $notes = array() ;
+  $links = array() ;
+
+  // iterate through all the record items, sorting into the arrays and
+  // theming if necessary
+  foreach ($items as $item) {
+    if ( strpos($item, 'HUSB') === 0 || strpos($item, 'WIFE') === 0) {
+      // only here so we can use 'else' at end as a catch-all bucket
+    }
+
+    elseif (strpos($item, 'CHIL') === 0) {
+      preg_match('@I(\d+)@i', $item, $matches);
+      $child = gedparse_person_link($matches[1]) ;
+      $children[] = $child ;
+    }
+
+    elseif (strpos($item, 'NOTE') === 0) {
+      $notes[] = gedparse_concatenate(substr($item, 4)) ;
+    }
+
+    elseif (strpos($item, 'OBJE') === 0) {
+      $obje = array(
+        'href' => NULL,
+        'title' => NULL,
+      ) ;
+
+      $item_parts = explode("\n2 ", $item) ;
+
+      foreach ($item_parts as $part) {
+        if (strpos($part, 'FILE') === 0) {
+          $obje['href'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'TITL') === 0) {
+          $obje['title'] = substr($part, 4) ;
+        }
+      }
+
+      $links[] = $obje ;
+    }
+
+    else {
+      $event = array(
+        '#theme' => 'gedparse_event',
+        '#type' => NULL,
+        '#date' => NULL,
+        '#plac' => NULL,
+        '#notes' => NULL,
+        '#caus' => NULL,
+        '#info' => NULL,
+        '#notes' => array(
+          '#theme' => 'item_list',
+          '#type' => 'ul',
+          '#items' => NULL,
+        ),
+      ) ;
+
+    $item_parts = explode("\n2 ", $item) ;
+
+    $event['#label'] = $gedparse_family_events[array_shift($item_parts)] ;
+
+      foreach ($item_parts as $part) {
+        if (strpos($part, 'TYPE') === 0) {
+					$event['#type'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'DATE') === 0) {
+          $event['#date'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'PLAC') === 0) {
+          $event['#plac'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'CAUS') === 0) {
+          $event['#caus'] = substr($part, 4) ;
+        }
+
+        elseif (strpos($part, 'NOTE') === 0) {
+          $event['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
+        }
+      }
+
+      $events[] = $event ;
+    }
+  }
+
+  // start collecting the renderable arrays
+  $output =  array() ;
+
+  if ($children) {
+    $output['children'] = array(
+      '#theme' => 'links',
+      '#heading' => t('Children'),
+      '#links' => $children,
+    ) ;
+  }
+
+  $output['events'] = $events ;
+
+  if ($notes) {
+    $output['notes'] = array(
+      '#theme' => 'item_list',
+      '#title' => t('Notes'),
+      '#type' => 'ul',
+      '#items' => $notes,
+    ) ;
+  }
+
+  if ($links) {
+    $output['links'] = array(
+      '#theme' => 'links',
+      '#heading' => t('Related Links'),
+      // should be h3, not h2
+      '#links' => $links,
+    ) ;
+  }
+
+// only for debugging purposes
+//  $output['items'] = array(
+//    '#theme' => 'item_list',
+//    '#title' => t('Items'),
+//    '#type' => 'ul',
+//    '#items' => $items,
+//  ) ;
+
+// only for debugging purposes
+//    $output['whole_record'] = array(
+//       '#type' => 'markup',
+//       '#markup' => $flat_record,
+//       '#prefix' => '<pre>',
+//       '#suffix' => '</pre>',
+//    ) ;
+
+  return array('family_html' => drupal_render($output)) ;
+}
+
+/**
  * Validate the user-entered Gedparse settings.
  */
 function gedparse_admin_validate($form, &$form_state) {
@@ -526,6 +691,7 @@ function gedparse_theme() {
         'selected_gender_class' => NULL,
         'partner_html' => NULL,
         'partner_gender_class' => NULL,
+        'family_html' => NULL,
       ),
       'template' => 'gedparse_display',
     ),

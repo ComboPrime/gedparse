@@ -16,7 +16,9 @@
  * - $partner_gender_class....(optional) A class setting to style the partner's
  *                            display based on gender.
  * - $partner_html............(optional) The rendered HTML for the partner.
- */
+ *
+ * - $family_html............(optional) The rendered HTML for the family.
+*/
 ?>
 
 
@@ -33,13 +35,7 @@
 
   <div class="row-fluid gedparse">
   <div class="span12">
-  <h2>Information on this union</h2>
-  <p><strong>Married:</strong> Yes</p>
-  <h3>Children</h3>
-  <ul>
-  <li>One</li>
-  <li>Two</li>
-  </ul>
+  <?php print $family_html ; ?>
   </div>
   <!-- end span12 union div -->
 <?php endif; ?>
