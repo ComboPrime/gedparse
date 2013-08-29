@@ -112,7 +112,7 @@ function gedparse_display_page($selected_number, $partner_number = NULL, $family
     }
 
     $family_info = gedparse_display_family($family_number) ;
-		$output_array['family_html'] = dprint_r($family_info) ;
+		$output_array = array_merge($output_array, $family_info) ;
   }
 
   drupal_set_title($title) ;
@@ -520,6 +520,9 @@ function gedparse_display_family($family_number) {
   // Explode flat_record to get array of separate items
   $items = explode("\n1 ", $flat_record) ;
 
+  // remove the opening family id line since we don't need it
+  array_shift($items) ;
+
   // Render array
   $children = array() ;
   $notes = array() ;
@@ -610,20 +613,14 @@ function gedparse_display_family($family_number) {
   }
 
   // start collecting the renderable arrays
-  $output =  array() ;
+  $family_html =  array() ;
 
-  if ($children) {
-    $output['children'] = array(
-      '#theme' => 'links',
-      '#heading' => t('Children'),
-      '#links' => $children,
-    ) ;
+  if ($events) {
+    $family_html['events'] = $events ;
   }
 
-  $output['events'] = $events ;
-
   if ($notes) {
-    $output['notes'] = array(
+    $family_html['notes'] = array(
       '#theme' => 'item_list',
       '#title' => t('Notes'),
       '#type' => 'ul',
@@ -632,7 +629,7 @@ function gedparse_display_family($family_number) {
   }
 
   if ($links) {
-    $output['links'] = array(
+    $family_html['links'] = array(
       '#theme' => 'links',
       '#heading' => t('Related Links'),
       // should be h3, not h2
@@ -640,23 +637,22 @@ function gedparse_display_family($family_number) {
     ) ;
   }
 
-// only for debugging purposes
-//  $output['items'] = array(
-//    '#theme' => 'item_list',
-//    '#title' => t('Items'),
-//    '#type' => 'ul',
-//    '#items' => $items,
-//  ) ;
+  // break children out separately, since will be a different
+  // variable in the template
+  $children_list = array() ;
 
-// only for debugging purposes
-//    $output['whole_record'] = array(
-//       '#type' => 'markup',
-//       '#markup' => $flat_record,
-//       '#prefix' => '<pre>',
-//       '#suffix' => '</pre>',
-//    ) ;
+  if ($children) {
+    $children_list = array(
+      '#theme' => 'links',
+      '#heading' => t('Children'),
+      '#links' => $children,
+    ) ;
+  }
 
-  return array('family_html' => drupal_render($output)) ;
+  return array(
+    'family_html' => drupal_render($family_html),
+    'children_list' => drupal_render($children_list),
+  ) ;
 }
 
 /**
@@ -692,6 +688,7 @@ function gedparse_theme() {
         'partner_html' => NULL,
         'partner_gender_class' => NULL,
         'family_html' => NULL,
+        'children_list' => NULL,
       ),
       'template' => 'gedparse_display',
     ),
