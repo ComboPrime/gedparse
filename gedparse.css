@@ -1,22 +1,37 @@
 /* GEDPARSE DISPLAY STYLES */
 
-.gedparse .selected,
-.gedparse .partner {
+#gedparse {
+  /* to get equal height columns */
+  overflow: hidden; 
+}
+
+#gedparse .span6,
+#gedparse .span12 {
  -webkit-border-radius: 0.5rem;
  -moz-border-radius: 0.5rem;
  border-radius: 0.5rem;
  padding: 0.5rem 1.5rem;
 }
 
-.gedparse .gender-f {
+#gedparse .span6 {
+  /* to get equal height columns */
+  margin-bottom: -99999px;
+  padding-bottom: 99999px;  
+}
+
+#gedparse .gender-f {
   background-color: rgba(255, 200, 200, 0.25) ;
 }
 
-.gedparse .gender-m {
+#gedparse .gender-m {
+  background-color: rgba(150, 200, 255, 0.25) ;
+}
+
+#gedparse .family-class {
   background-color: rgba(200, 200, 255, 0.25) ;
 }
 
-.gedparse img {
+#gedparse img {
   float: right;
   margin: 0 0 2em 2em;
 }

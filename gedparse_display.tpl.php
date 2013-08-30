@@ -38,16 +38,16 @@
 
 <div id="gedparse">
 <div class="row-fluid">
-  <div class="span6 <?php print $selected_gender_class; ?>">
+  <div class="span6 family-class">
     <?php print $selected_parents ; ?>
   </div><!-- end span6 selected_parents div -->
 
   <?php if ($partner_parents): ?>
-    <div class="span6 <?php print $partner_gender_class; ?>">
+    <div class="span6 family-class">
       <?php print $partner_parents ; ?>
     </div><!-- end span6 partner div -->
   <?php endif; ?>
-</div><!-- end span6 partner_parents div -->
+</div><!-- end row-fluid div -->
 
 <div class="row-fluid">
   <div class="span6 <?php print $selected_gender_class; ?>">
@@ -89,11 +89,12 @@
   </div><!-- end row-fluid wrapper div -->
 <?php endif; ?>
 
-<?php if $family_info: ?>
+<?php if ($family_html): ?>
   <div class="row-fluid">
-    <div class="span12">
+    <div class="span12 family-class">
       <div class="row-fluid">
         <div class="span6">
+          <h2>About This Partnership</h2>
           <?php print $family_html ; ?>
         </div><!-- end span6 family div -->
         <div class="span6">

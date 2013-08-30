@@ -96,16 +96,22 @@ function gedparse_display_page($selected_number, $partner_number = NULL, $family
   }
 
   $output_array = array(
-    'selected_html' => $selected_variables['html'],
     'selected_gender_class' => $selected_variables['gender_class'],
+    'selected_parents' => $selected_variables['parents'],
+    'selected_html' => $selected_variables['html'],
+    'selected_siblings' => $selected_variables['siblings'],
+    'selected_partners' => $selected_variables['partners'],
   ) ;
 
   if ($partner_number) {
     $partner_variables = gedparse_display_person($partner_number, FALSE) ;
     $title .= ' & ' . $partner_variables['full_name'] ;
 
-    $output_array['partner_html'] = $partner_variables['html'] ;
     $output_array['partner_gender_class'] = $partner_variables['gender_class'] ;
+    $output_array['partner_parents'] = $partner_variables['parents'] ;
+    $output_array['partner_html'] = $partner_variables['html'] ;
+    $output_array['partner_siblings'] = $partner_variables['siblings'] ;
+    $output_array['partner_partners'] = $partner_variables['partners'] ;
 
     if (!$family_number && $selected_variables['family_id']) {
       $family_number = $selected_variables['family_id'] ;
@@ -211,7 +217,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
       foreach ($parent_id_numbers as $id_number) {
         $parent = gedparse_person_link($id_number) ;
 
-        $parents[] = $parent ;
+        $parents['#links'][] = $parent ;
       }
 
       $sibling_id_numbers = gedparse_get_family_members($matches[1], 'siblings', $indi_number) ;
@@ -219,7 +225,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
       foreach ($sibling_id_numbers as $id_number) {
         $sibling = gedparse_person_link($id_number) ;
 
-        $siblings[] = $sibling ;
+        $siblings['#links'][] = $sibling ;
       }
     }
 
@@ -250,7 +256,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
       // append the family number so we can grab its info later
       $partner['href'] .= '/' . $family_id ;
 
-      $partners[] = $partner ;
+      $partners['#links'][] = $partner ;
     }
 
     elseif (strpos($item, 'SSN') === 0) {
@@ -396,24 +402,53 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
   $names[0]['#html_open'] = '<h2>' ;
   $names[0]['#html_close'] = '</h2>' ;
 
-  // start collecting the renderable arrays
-  $output =  array() ;
-
+  // build [and render] the output arrays
   if ($parents) {
-    $output['parents'] = array(
-      '#theme' => 'links',
-      '#heading' => t('Parents'),
-      '#links' => $parents,
-    ) ;
+    $parents['#theme'] = 'links' ;
+    $parents['#heading'] = t('Parents') ;
   }
 
   else {
-    $output['parents'] = array(
+    $parents = array(
       '#markup' => t('Not in database'),
       '#prefix' => '<h2>' . t('Parents') . '</h2><p>',
       '#suffix' => '</p>',
     ) ;
   }
+
+  if ($siblings) {
+    $siblings['#theme'] = 'links' ;
+    $siblings['#heading'] = t('Siblings') ;
+  }
+
+  else {
+    $siblings = array(
+      '#markup' => t('None'),
+      '#prefix' => '<h2>' . t('Siblings') . '</h2><p>',
+      '#suffix' => '</p>',
+    ) ;
+  }
+
+  if ($partners) {
+    $partners['#theme'] = 'links' ;
+    $partners['#heading'] = t('Partners') ;
+  }
+  
+  else {
+    $partners = array(
+      '#markup' => t('None'),
+      '#prefix' => '<h2>' . t('Partners') . '</h2><p>',
+      '#suffix' => '</p>',
+    ) ;
+  }
+
+  // if the selected person has exactly 1 partner,
+  // go ahead and display that person alongside.
+  if (!$selected || count($partners) != 1) {
+    $display_partner_id = NULL ;
+  }
+
+  $output =  array() ;
 
   $output['headshot'] = array(
       '#theme' => 'image',
@@ -446,48 +481,11 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
     ) ;
   }
 
-  // only show partners list if more than one
-  if ($partners) {
-    $output['partners'] = array(
-      '#theme' => 'links',
-      '#heading' => t('Partners'),
-      '#suffix' => t('<p class="partner-disclaimer">(Select a partner to display information on their union)</p>'),
-      '#links' => $partners,
-    ) ;
-  }
-
-  if ($siblings) {
-    $output['siblings'] = array(
-      '#theme' => 'links',
-      '#heading' => t('Siblings'),
-      '#links' => $siblings,
-    ) ;
-  }
-
-// only for debugging purposes
-//  $output['items'] = array(
-//    '#theme' => 'item_list',
-//    '#title' => t('Items'),
-//    '#type' => 'ul',
-//    '#items' => $items,
-//  ) ;
-
-// only for debugging purposes
-//    $output['whole_record'] = array(
-//       '#type' => 'markup',
-//       '#markup' => $flat_record,
-//       '#prefix' => '<pre>',
-//       '#suffix' => '</pre>',
-//    ) ;
-
-  // if the selected person has exactly 1 partner,
-  // go ahead and display that person alongside.
-  if (!$selected || count($partners) != 1) {
-    $display_partner_id = NULL ;
-  }
-
   return array(
+    'parents' => drupal_render($parents),
     'html' => drupal_render($output),
+    'siblings' => drupal_render($siblings),
+    'partners' => drupal_render($partners),
     'full_name' => $full_name,
     'display_partner' => $display_partner_id,
     'family_id' => $family_id,
@@ -567,6 +565,7 @@ function gedparse_display_family($family_number) {
     }
 
     else {
+    	// should turn this and previous instance into a function
       $event = array(
         '#theme' => 'gedparse_event',
         '#type' => NULL,
@@ -683,10 +682,16 @@ function gedparse_theme() {
   return array(
     'gedparse_display' => array(
       'variables' => array(
-        'selected_html' => NULL,
         'selected_gender_class' => NULL,
-        'partner_html' => NULL,
+        'selected_parents' => NULL,
+        'selected_html' => NULL,
+        'selected_partners' => NULL,
+        'selected_siblings' => NULL,
         'partner_gender_class' => NULL,
+        'partner_parents' => NULL,
+        'partner_html' => NULL,
+        'partner_partners' => NULL,
+        'partner_siblings' => NULL,
         'family_html' => NULL,
         'children_list' => NULL,
       ),
