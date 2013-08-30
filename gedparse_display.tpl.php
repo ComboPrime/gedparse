@@ -39,7 +39,7 @@
 
 <?php if ($family_html): ?>
   <div class="row-fluid">
-    <div class="span12 family-info`">
+    <div class="span12 family-info">
       <div class="row-fluid">
         <div class="span6">
           <h2>Family Information</h2>
