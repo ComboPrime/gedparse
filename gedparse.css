@@ -1,37 +1,42 @@
 /* GEDPARSE DISPLAY STYLES */
 
-#gedparse {
-  /* to get equal height columns */
-  overflow: hidden; 
-}
 
 #gedparse .span6,
 #gedparse .span12 {
- -webkit-border-radius: 0.5rem;
- -moz-border-radius: 0.5rem;
- border-radius: 0.5rem;
+ margin: 0;
  padding: 0.5rem 1.5rem;
 }
 
 #gedparse .span6 {
-  /* to get equal height columns */
-  margin-bottom: -99999px;
-  padding-bottom: 99999px;  
+  width: 50%;
 }
 
 #gedparse .gender-f {
-  background-color: rgba(255, 200, 200, 0.25) ;
+  background-color: #ffecec;
 }
 
 #gedparse .gender-m {
-  background-color: rgba(150, 200, 255, 0.25) ;
+  background-color: #ececff;
 }
 
-#gedparse .family-class {
-  background-color: rgba(200, 200, 255, 0.25) ;
+#gedparse .family-info {
+  background-color: #ebd7eb;
 }
 
 #gedparse img {
   float: right;
   margin: 0 0 2em 2em;
 }
+
+
+/* to get equal height columns */
+#gedparse {
+  overflow: hidden; 
+}
+
+#gedparse .span6 {
+  margin-bottom: -99990px;
+  padding-bottom: 99999px;
+}
+/* end equal height CSS */
+
