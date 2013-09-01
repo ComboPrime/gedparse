@@ -1,9 +1,9 @@
-name = Gedparse
+name = GEDparse
 description = Generates dynamic web pages from a GEDCOM file.
 
-package = etg Modules
+package = Other
 core = 7.x
-version = 7.x-0.5
+version = 7.x-0.7
 
 configure = admin/config/gedparse
 
