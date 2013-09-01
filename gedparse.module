@@ -229,7 +229,7 @@ function _gedparse_display_results($field1, $field2 = NULL) {
 
   $all_records = _gedparse_get_all_records() ;
 
-  foreach($all_records as $record) {
+  foreach ($all_records as $record) {
     preg_match($pattern, $record, $matches) ;
 
     if ($matches) {
@@ -239,14 +239,14 @@ function _gedparse_display_results($field1, $field2 = NULL) {
   }
 
   if (count($name_matches) > 1) {
-    foreach($name_matches as &$person) {
+    foreach ($name_matches as &$person) {
       $person = gedparse_person_link($person) ;
     }
 
     // sort by name
-//     usort($name_matches, function($a, $b) {
-//       return $a['order'] - $b['order'];
-//     });
+    usort($name_matches, function($a, $b) {
+      return strcmp($a['title'], $b['title']) ;
+    }) ;
 
     $output = array(
       '#theme' => 'links',
