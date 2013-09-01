@@ -213,8 +213,6 @@ function gedparse_admin() {
     '#default_value' => variable_get('gedparse_headshot_location'),
   );
 
-  // allow admin to set permissions?
-
   return system_settings_form($form);
 }
 
@@ -620,14 +618,23 @@ function _gedparse_display_person($indi_number, $selected = TRUE) {
     ) ;
   }
 
-  $output['headshot'] = array(
-      '#theme' => 'image',
-      // should use configured folder location
-      '#path' => 'sites/etgdesign.com/files/headshots/indi' . $indi_number . '.jpg',
-      '#width' => '75px',
-      '#height' => '100px',
-      '#alt' => 'Portrait of ' . $full_name ,
-  ) ;
+  // only display the headshot image if (1) folder location is set, and
+  // (2) a headshot file for this person exists in that folder
+  if (variable_get('gedparse_headshot_location')) {
+
+    $headshot_path = conf_path() . '/' . variable_get('gedparse_headshot_location') ;
+    $headshot_path .= '/indi' . $indi_number . '.jpg' ;
+
+    if (file_exists($headshot_path)) {
+      $output['headshot'] = array(
+          '#theme' => 'image',
+          '#path' => $headshot_path,
+          '#width' => '75px',
+          '#height' => '100px',
+          '#alt' => 'Portrait of ' . $full_name ,
+      ) ;
+    }
+  }
 
   $output['names'] = $names ;
 
@@ -728,7 +735,7 @@ function _gedparse_display_family($family_number) {
   // remove the opening family id line since we don't need it
   array_shift($items) ;
 
-  // Render array
+  // Render arrays
   $children = array() ;
   $notes = array() ;
   $links = array() ;
