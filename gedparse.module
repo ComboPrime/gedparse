@@ -18,9 +18,10 @@ function gedparse_help($path, $arg) {
  * Implements hook_menu().
  */
 function gedparse_menu() {
-  $base_path = variable_get('gedparse_base_path','gedparse') ;
+  $base_path = variable_get('gedparse_base_path', 'gedparse') ;
   $items = array();
 
+  // Module configuration page
   $items['admin/config/Gedparse'] = array(
     'title' => 'Configure Gedparse',
     'description' => 'Configure settings for the Gedparse module.',
@@ -30,15 +31,142 @@ function gedparse_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
+  // Display search results
+  $items[$base_path . '/search/%'] = array(
+    'title' => 'Search Results',
+    'page callback' => '_gedparse_display_results',
+    'page arguments' => array(2, 3),
+    // need to change this
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
+  // Display a person or couple page
   $items[$base_path . '/show/%'] = array(
-    //'title' => t('Family Tree Info'),
-    'page callback' => 'gedparse_display_page',
+    'page callback' => '_gedparse_display_page',
     'page arguments' => array(2, 3, 4),
+    // need to change this
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
   );
 
   return $items;
+}
+
+/**
+ * Implements hook_block_info().
+ *
+ * A reusable block to allow name searches
+ */
+function gedparse_block_info() {
+  $blocks['gedparse_search'] = array(
+    'info' => t('GEDparse Search Form'),
+    // is this really the right setting?
+    'cache' => DRUPAL_CACHE_PER_ROLE,
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function gedparse_block_view($delta='') {
+  $block = array();
+
+  switch ($delta) {
+    case 'gedparse_search':
+      $block['subject'] = NULL ;
+      $block['content'] = drupal_get_form('gedparse_search_form') ;
+      break;
+  }
+
+  return $block;
+}
+
+/**
+ * Callback function to create the search form.
+ */
+function gedparse_search_form($form, &$form_state) {
+  $access_message = t('NOTE: Access to the online family tree is restricted to protect individual privacy.') ;
+
+  if (variable_get('site_mail')) {
+    $access_message .= ' ' . t("Please contact <a href=\"mailto:@admin?subject=Family tree access\">@admin</a> if you are a family member.",
+      array('@admin' => variable_get('site_mail'))) ;
+  }
+
+  $form['find_relative'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Find a relative'),
+  ) ;
+
+  $form['find_relative']['access_message'] = array(
+    '#markup' => $access_message,
+    '#prefix' => '<p>',
+    '#suffix' => '</p>',
+  ) ;
+
+  $form['find_relative']['instructions'] = array(
+    '#markup' => t('Leaving one field blank will return all matches on the other field'),
+    '#prefix' => '<p><em>',
+    '#suffix' => '</em></p>',
+  ) ;
+
+  $form['find_relative']['first_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('First name'),
+    '#maxlength' => 64,
+  ) ;
+
+  $form['find_relative']['last_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Last name'),
+    '#maxlength' => 64,
+  ) ;
+
+  $form['find_relative']['submit_button'] = array(
+    '#type' => 'submit',
+    '#value' => t('Search'),
+    '#prefix' => '<p>',
+    '#suffix' => '</p>',
+  ) ;
+
+  return $form;
+}
+
+/**
+ * Handler function to validate the search form.
+ */
+function gedparse_search_form_validate($form, &$form_state) {
+  // think Drupal Form API already prevents XSS and other attacks, so no need to validate?
+}
+
+/**
+ * Handler function to send submitted search terms to the results page.
+ */
+function gedparse_search_form_submit($form, &$form_state) {
+  $search_url = 'family/search/' ;
+
+  // append the search input as arg1 and optional arg2
+  if ($form_state['values']['first_name']) {
+    $search_url .= $form_state['values']['first_name'] ;
+
+    if ($form_state['values']['last_name']) {
+      $search_url .= '/' . $form_state['values']['last_name'] ;
+    }
+  }
+
+  elseif ($form_state['values']['last_name']) {
+    $search_url .= $form_state['values']['last_name'] ;
+  }
+
+  else {
+    $search_url .= 'all' ;
+    // need to implement theme_pager to handle large result sets?
+  }
+
+  // send the args to the search results page
+  $form_state['redirect'] = $search_url ;
 }
 
 /**
@@ -62,7 +190,7 @@ function gedparse_admin() {
     '#title' => t('Base path for displayed GEDparse pages'),
     '#size' => 100,
     '#maxlength' => 100,
-    '#default_value' => variable_get('gedparse_base_path','gedparse'),
+    '#default_value' => variable_get('gedparse_base_path', 'gedparse'),
   );
 
   $form['gedparse_headshot_location'] = array(
@@ -79,12 +207,78 @@ function gedparse_admin() {
   return system_settings_form($form);
 }
 
+/**
+ * Callback function to display search results
+ */
+function _gedparse_display_results($field1, $field2 = NULL) {
+  // set the search pattern from the args
+  $pattern = '~^\d (NAME|NICK) .*(' ;
+
+  if ($field1 != 'all') {
+    $pattern .= $field1 ;
+  }
+
+  if ($field2) {
+    $pattern .= '.*' . $field2 ;
+  }
+
+  $pattern .= ').*$~im' ;
+
+  //initialize an array to hold results
+  $name_matches = array() ;
+
+  $all_records = _gedparse_get_all_records() ;
+
+  foreach($all_records as $record) {
+    preg_match($pattern, $record, $matches) ;
+
+    if ($matches) {
+      preg_match('~^@I(\d+)@ INDI~im', $record, $indi) ;
+      $name_matches[] = $indi[1] ;
+    }
+  }
+
+  if (count($name_matches) > 1) {
+    foreach($name_matches as &$person) {
+      $person = gedparse_person_link($person) ;
+    }
+
+    // sort by name
+//     usort($name_matches, function($a, $b) {
+//       return $a['order'] - $b['order'];
+//     });
+
+    $output = array(
+      '#theme' => 'links',
+      '#links' => $name_matches,
+    ) ;
+  }
+
+  elseif (count($name_matches) == 1) {
+    drupal_goto('family/show/' . $name_matches[0]) ;
+  }
+
+  else {
+    $output['html'] = array(
+      '#markup' => t('No names in the database matched your search. Would you like to try another search?'),
+      '#prefix' => '<p>',
+      '#suffix' => '</p>',
+    ) ;
+
+    // grab the search form block
+    $block = module_invoke('gedparse', 'block_view', 'gedparse_search') ;
+
+    $output['form'] = $block['content'] ;
+  }
+
+  return drupal_render($output) ;
+}
 
 /**
  * Callback function to display the person or couple page
  */
-function gedparse_display_page($selected_number, $partner_number = NULL, $family_number = NULL) {
-  $selected_variables = gedparse_display_person($selected_number) ;
+function _gedparse_display_page($selected_number, $partner_number = NULL, $family_number = NULL) {
+  $selected_variables = _gedparse_display_person($selected_number) ;
   $title = $selected_variables['full_name'] ;
   $partner_variables = array() ;
 
@@ -101,7 +295,7 @@ function gedparse_display_page($selected_number, $partner_number = NULL, $family
   ) ;
 
   if ($partner_number) {
-    $partner_variables = gedparse_display_person($partner_number, FALSE) ;
+    $partner_variables = _gedparse_display_person($partner_number, FALSE) ;
     $title .= ' & ' . $partner_variables['full_name'] ;
 
     $output_array['partner_html'] = $partner_variables['html'] ;
@@ -111,8 +305,8 @@ function gedparse_display_page($selected_number, $partner_number = NULL, $family
       $family_number = $selected_variables['family_id'] ;
     }
 
-    $family_info = gedparse_display_family($family_number) ;
-		$output_array = array_merge($output_array, $family_info) ;
+    $family_info = _gedparse_display_family($family_number) ;
+    $output_array = array_merge($output_array, $family_info) ;
   }
 
   drupal_set_title($title) ;
@@ -124,7 +318,7 @@ function gedparse_display_page($selected_number, $partner_number = NULL, $family
 /**
  * Callback function to display a person.
  */
-function gedparse_display_person($indi_number, $selected = TRUE) {
+function _gedparse_display_person($indi_number, $selected = TRUE) {
   // set up array for later output
   $gedparse_event_list = array(
     'BIRT' => 'Born',
@@ -166,7 +360,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
   );
 
   // get the raw data
-  $flat_record = gedparse_get_record('INDI', $indi_number) ;
+  $flat_record = _gedparse_get_record('INDI', $indi_number) ;
 
   // Explode flat_record to get array of separate items
   $items = explode("\n1 ", $flat_record) ;
@@ -206,7 +400,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
     elseif (strpos($item, 'FAMC') === 0) {
       preg_match('@F(\d+)@i', $item, $matches);
 
-      $parent_id_numbers = gedparse_get_family_members($matches[1], 'parents') ;
+      $parent_id_numbers = _gedparse_get_family_members($matches[1], 'parents') ;
 
       foreach ($parent_id_numbers as $id_number) {
         $parent = gedparse_person_link($id_number) ;
@@ -214,7 +408,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
         $parents[] = $parent ;
       }
 
-      $sibling_id_numbers = gedparse_get_family_members($matches[1], 'siblings', $indi_number) ;
+      $sibling_id_numbers = _gedparse_get_family_members($matches[1], 'siblings', $indi_number) ;
 
       foreach ($sibling_id_numbers as $id_number) {
         $sibling = gedparse_person_link($id_number) ;
@@ -232,7 +426,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
       // display a family anyway.
       $family_id = $matches[1] ;
 
-      $partner_id_number = gedparse_get_family_members($family_id, 'partners', $indi_number) ;
+      $partner_id_number = _gedparse_get_family_members($family_id, 'partners', $indi_number) ;
 
       // also save the partner number.
       $display_partner_id = $partner_id_number[0] ;
@@ -240,11 +434,11 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
       $partner = gedparse_person_link($partner_id_number[0]) ;
 
       if ($selected) {
-        $partner['href'] = preg_replace('~(\d+)$~', $indi_number. '/$1', $partner['href']) ;
-       }
+        $partner['href'] = preg_replace('~(\d+)$~', $indi_number . '/$1', $partner['href']) ;
+      }
 
       else {
-         $partner['href'] .= '/' . $indi_number ;
+        $partner['href'] .= '/' . $indi_number ;
       }
 
       // append the family number so we can grab its info later
@@ -305,7 +499,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
         }
 
         elseif (strpos($part, 'NOTE') === 0) {
-          $name['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
+          $name['#notes']['#items'][] = _gedparse_concatenate(substr($part, 4)) ;
         }
       }
 
@@ -313,7 +507,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
     }
 
     elseif (strpos($item, 'NOTE') === 0) {
-      $notes[] = gedparse_concatenate(substr($item, 4)) ;
+      $notes[] = _gedparse_concatenate(substr($item, 4)) ;
     }
 
     elseif (strpos($item, 'OBJE') === 0) {
@@ -381,7 +575,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
         }
 
         elseif (strpos($part, 'NOTE') === 0) {
-          $event['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
+          $event['#notes']['#items'][] = _gedparse_concatenate(substr($part, 4)) ;
         }
       }
 
@@ -390,7 +584,7 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
   }
 
   // grab the first name in the list to use for the title
-  $full_name = gedparse_build_name($names[0], FALSE) ;
+  $full_name = _gedparse_build_name($names[0], FALSE) ;
 
   // need  to set the first name item to be a header
   $names[0]['#html_open'] = '<h2>' ;
@@ -496,26 +690,26 @@ function gedparse_display_person($indi_number, $selected = TRUE) {
 }
 
 /**
- * Callback function to display a person.
+ * Callback function to display a family.
  */
-function gedparse_display_family($family_number) {
+function _gedparse_display_family($family_number) {
   // set up array for later output
   $gedparse_family_events = array(
-		'ANUL' => 'Annulled',
-		'CENS' => 'Census information',
-		'DIV ' => 'Divorced',
-		'DIVF' => 'Divorce filed',
-		'ENGA' => 'Engaged',
-		'MARR' => 'Married',
-		'MARB' => 'Banns posted',
-		'MARC' => 'Marriage contract',
-		'MARL' => 'Marriage license',
-		'MARS' => 'Marriage settlement',
-		'EVEN' => '',
+    'ANUL' => 'Annulled',
+    'CENS' => 'Census information',
+    'DIV ' => 'Divorced',
+    'DIVF' => 'Divorce filed',
+    'ENGA' => 'Engaged',
+    'MARR' => 'Married',
+    'MARB' => 'Banns posted',
+    'MARC' => 'Marriage contract',
+    'MARL' => 'Marriage license',
+    'MARS' => 'Marriage settlement',
+    'EVEN' => '',
   );
 
   // get the raw data
-  $flat_record = gedparse_get_record('FAM', $family_number) ;
+  $flat_record = _gedparse_get_record('FAM', $family_number) ;
 
   // Explode flat_record to get array of separate items
   $items = explode("\n1 ", $flat_record) ;
@@ -542,7 +736,7 @@ function gedparse_display_family($family_number) {
     }
 
     elseif (strpos($item, 'NOTE') === 0) {
-      $notes[] = gedparse_concatenate(substr($item, 4)) ;
+      $notes[] = _gedparse_concatenate(substr($item, 4)) ;
     }
 
     elseif (strpos($item, 'OBJE') === 0) {
@@ -588,7 +782,7 @@ function gedparse_display_family($family_number) {
 
       foreach ($item_parts as $part) {
         if (strpos($part, 'TYPE') === 0) {
-					$event['#type'] = substr($part, 4) ;
+          $event['#type'] = substr($part, 4) ;
         }
 
         elseif (strpos($part, 'DATE') === 0) {
@@ -604,7 +798,7 @@ function gedparse_display_family($family_number) {
         }
 
         elseif (strpos($part, 'NOTE') === 0) {
-          $event['#notes']['#items'][] = gedparse_concatenate(substr($part, 4)) ;
+          $event['#notes']['#items'][] = _gedparse_concatenate(substr($part, 4)) ;
         }
       }
 
@@ -658,7 +852,7 @@ function gedparse_display_family($family_number) {
 /**
  * Validate the user-entered Gedparse settings.
  */
-function gedparse_admin_validate($form, &$form_state) {
+function _gedparse_admin_validate($form, &$form_state) {
   $gedparse_db_location = $form_state['values']['gedparse_db_location'];
   if (!file_exists($gedparse_db_location)) {
     form_set_error('gedparse_db_location', t("Can't find a file at that location."));
@@ -741,7 +935,7 @@ function theme_gedparse_display($variables) {
  * Custom theme function for event items.
  */
 function theme_gedparse_event($variables) {
-  $output = "\n\n<p><em>" ;
+  $output = "\n\n" . '<p class="event"><em>' ;
 
   if ($variables['label'] && $variables['type']) {
     $output .= $variables['label'] . '</em> ' . $variables['type'] . "<br>\n";
@@ -799,7 +993,7 @@ function theme_gedparse_event($variables) {
  */
 function theme_gedparse_name($variables) {
   $output = "\n\n" . $variables['html_open'] ;
-  $output .= gedparse_build_name($variables) ;
+  $output .= _gedparse_build_name($variables) ;
   $output .= $variables['nick'] ? ', “' . $variables['nick'] . '”' : '' ;
   $output .= $variables['html_close'] ;
 
@@ -813,53 +1007,51 @@ function theme_gedparse_name($variables) {
   return $output ;
 }
 
-  /**
-  * Custom theme function for a person's name that links to their record.
-  */
-  function gedparse_person_link($id_number) {
-    $record = gedparse_get_record('INDI', $id_number) ;
+/**
+ * Custom theme function for a person's name that links to their record.
+ */
+function gedparse_person_link($id_number) {
+  $record = _gedparse_get_record('INDI', $id_number) ;
 
-    $person_link = array(
-      'href' => variable_get('gedparse_base_path','gedparse') . '/show/' . $id_number ,
-    ) ;
+  $person_link = array(
+    'href' => variable_get('gedparse_base_path', 'gedparse') . '/show/' . $id_number ,
+  ) ;
 
-    // check if the person's record is restricted
-    $privacy = strpos($record, 'RESN privacy') ;
-    if ($privacy !== FALSE) {
-      $person_link['title'] = 'Name withheld' ;
-    }
-
-    else {
-      preg_match('~1 NAME (.+?)$~m', $record, $matches) ;
-      $name['full_name'] = $matches ? $matches[1] : 'Name unknown' ;
-
-      preg_match('~NPFX (.+?)$~m', $record, $matches) ;
-      $name['npfx'] = $matches ? $matches[1] : '' ;
-
-      preg_match('~NSFX (.+?)$~m', $record, $matches) ;
-      $name['nsfx'] = $matches ? $matches[1] : '' ;
-
-      preg_match('~^1 BIRT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
-      $birth = $matches ? $matches[1] : ' ' ;
-
-      preg_match('~^1 DEAT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
-      $death = $matches ? $matches[1] : ' ' ;
-
-      $person_link['title'] = gedparse_build_name($name) ;
-      $person_link['title'] .= ' (' . $birth . '–' . $death . ')' ;
-    }
-
-    return $person_link ;
+  // check if the person's record is restricted
+  $privacy = strpos($record, 'RESN privacy') ;
+  if ($privacy !== FALSE) {
+    $person_link['title'] = 'Name withheld' ;
   }
+
+  else {
+    preg_match('~1 NAME (.+?)$~m', $record, $matches) ;
+    $name['full_name'] = $matches ? $matches[1] : 'Name unknown' ;
+
+    preg_match('~NPFX (.+?)$~m', $record, $matches) ;
+    $name['npfx'] = $matches ? $matches[1] : '' ;
+
+    preg_match('~NSFX (.+?)$~m', $record, $matches) ;
+    $name['nsfx'] = $matches ? $matches[1] : '' ;
+
+    preg_match('~^1 BIRT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
+    $birth = $matches ? $matches[1] : ' ' ;
+
+    preg_match('~^1 DEAT[^\n1]*\n2 DATE .*?(\d{4})~ms', $record, $matches) ;
+    $death = $matches ? $matches[1] : ' ' ;
+
+    $person_link['title'] = _gedparse_build_name($name) ;
+    $person_link['title'] .= ' (' . $birth . '–' . $death . ')' ;
+  }
+
+  return $person_link ;
+}
 
 /**
  * Get an exploded array of records from the flat GEDCOM file.
  *
  * Use Drupal's Cache API to improve performance.
  */
-function gedparse_get_all_records() {
-
-
+function _gedparse_get_all_records() {
   // First check if the exploded array is already cached.
   // If not, create and cache it.
   if (!$all_records = cache_get('Gedparse:all_records', 'cache')) {
@@ -907,11 +1099,9 @@ function gedparse_get_all_records() {
 
 /**
  * Retrieve an INDI or FAM record from exploded array of the flat GEDCOM file.
- *
- * Use Drupal's Cache API to improve performance.
  */
-function gedparse_get_record($type, $record_number) {
-  $all_records = gedparse_get_all_records() ;
+function _gedparse_get_record($type, $record_number) {
+  $all_records = _gedparse_get_all_records() ;
 
   $matches = preg_grep('/^@[IF]' . $record_number . '@ ' . $type . '/', $all_records) ;
 
@@ -931,11 +1121,11 @@ function gedparse_get_record($type, $record_number) {
  *
  * Returns an array of the partners' id numbers
  */
-function gedparse_get_family_members($family_number, $relationship, $selected_person = NULL) {
+function _gedparse_get_family_members($family_number, $relationship, $selected_person = NULL) {
   // init an array to hold the spouse id numbers
   $family_members = array() ;
 
-  $family_record = gedparse_get_record('FAM', $family_number) ;
+  $family_record = _gedparse_get_record('FAM', $family_number) ;
   $family_parts = explode("\n1 ", $family_record) ;
 
   foreach ($family_parts as $person) {
@@ -952,7 +1142,7 @@ function gedparse_get_family_members($family_number, $relationship, $selected_pe
     if ($matches) {
       // only add them to array if either: (1) we didn't pass an id number
       // [which means we're looking for parents, so want both]
-      // of (2) the id number arg isn't the same as the family member
+      // or (2) the id number arg isn't the same as the family member
       // [because we we're looking for partners or siblings]
       if (!$selected_person || $selected_person != $matches[1]) {
         $family_members[] = $matches[1] ;
@@ -966,7 +1156,8 @@ function gedparse_get_family_members($family_number, $relationship, $selected_pe
 /**
  * Combine all the parts of the name array and removes any slashes
  */
-function gedparse_build_name($name, $themed=TRUE) {
+function _gedparse_build_name($name, $themed=TRUE) {
+  // need to check if restricted?
 
   // unthemed names use a hashmark in the array keys;
   // themed names don't. So use $themed arg to distinguish.
@@ -990,7 +1181,7 @@ function gedparse_build_name($name, $themed=TRUE) {
 /**
  * Removes CONC/CONT tags and connects lines
  */
-function gedparse_concatenate($text) {
+function _gedparse_concatenate($text) {
   $text = preg_replace("/\n\d+? CONC/", " ", $text) ;
   $text = preg_replace("/\n\d+? CONT/", "<br>", $text) ;
 

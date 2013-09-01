@@ -31,7 +31,7 @@
 
 /* to get equal height columns */
 #gedparse {
-  overflow: hidden; 
+  overflow: hidden;
 }
 
 #gedparse .span6 {
@@ -40,3 +40,8 @@
 }
 /* end equal height CSS */
 
+
+#gedparse .event {
+  text-indent: -2em;
+  margin-left: 2em;
+}
