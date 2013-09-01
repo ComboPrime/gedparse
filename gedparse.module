@@ -596,7 +596,7 @@ function _gedparse_display_person($indi_number, $selected = TRUE) {
   $full_name = _gedparse_build_name($names[0], FALSE) ;
 
   // need  to set the first name item to be a header
-  $names[0]['#html_open'] = '<h2>' ;
+  $names[0]['#html_open'] = '<h2 class="main-name">' ;
   $names[0]['#html_close'] = '</h2>' ;
 
   // start collecting the renderable arrays
@@ -607,21 +607,22 @@ function _gedparse_display_person($indi_number, $selected = TRUE) {
       '#theme' => 'links',
       '#heading' => t('Parents'),
       '#links' => $parents,
+      '#prefix' => '<div class="parents">',
+      '#suffix' => '</div>',
     ) ;
   }
 
   else {
     $output['parents'] = array(
       '#markup' => t('Not in database'),
-      '#prefix' => '<h2>' . t('Parents') . '</h2><p>',
-      '#suffix' => '</p>',
+      '#prefix' => '<div class="parents"><h2>' . t('Parents') . '</h2><p>',
+      '#suffix' => '</p></div>',
     ) ;
   }
 
   // only display the headshot image if (1) folder location is set, and
   // (2) a headshot file for this person exists in that folder
   if (variable_get('gedparse_headshot_location')) {
-
     $headshot_path = conf_path() . '/' . variable_get('gedparse_headshot_location') ;
     $headshot_path .= '/indi' . $indi_number . '.jpg' ;
 

@@ -19,6 +19,14 @@
   background-color: #ececff;
 }
 
+#gedparse .parents {
+  height: 7rem;
+}
+
+#gedparse h2.main-name {
+  margin-top: 0;
+}
+
 #gedparse .family-info {
   background-color: #ebd7eb;
 }
