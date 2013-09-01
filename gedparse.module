@@ -22,9 +22,9 @@ function gedparse_menu() {
   $items = array();
 
   // Module configuration page
-  $items['admin/config/Gedparse'] = array(
-    'title' => 'Configure Gedparse',
-    'description' => 'Configure settings for the Gedparse module.',
+  $items['admin/config/gedparse'] = array(
+    'title' => 'Configure GEDparse',
+    'description' => 'Configure settings for the GEDparse module.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('gedparse_admin'),
     'access arguments' => array('access administration pages'),
@@ -36,8 +36,7 @@ function gedparse_menu() {
     'title' => 'Search Results',
     'page callback' => '_gedparse_display_results',
     'page arguments' => array(2, 3),
-    // need to change this
-    'access arguments' => array('access content'),
+    'access arguments' => array('use gedparse'),
     'type' => MENU_CALLBACK,
   );
 
@@ -45,12 +44,23 @@ function gedparse_menu() {
   $items[$base_path . '/show/%'] = array(
     'page callback' => '_gedparse_display_page',
     'page arguments' => array(2, 3, 4),
-    // need to change this
-    'access arguments' => array('access content'),
+    'access arguments' => array('use gedparse'),
     'type' => MENU_CALLBACK,
   );
 
   return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function gedparse_permission() {
+  return array(
+    'use gedparse' => array(
+      'title' => t('Search and view records from your GEDCOM file'),
+      'warning' => t('Warning: Give to trusted roles only due to privacy issues with genealogical data.'),
+    ),
+  ) ;
 }
 
 /**
@@ -188,6 +198,7 @@ function gedparse_admin() {
   $form['gedparse_base_path'] = array(
     '#type' => 'textfield',
     '#title' => t('Base path for displayed GEDparse pages'),
+    '#description' => t('Example default path is mysite.com/gedparse/show/%.'),
     '#size' => 100,
     '#maxlength' => 100,
     '#default_value' => variable_get('gedparse_base_path', 'gedparse'),
