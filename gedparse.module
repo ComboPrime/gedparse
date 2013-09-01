@@ -176,7 +176,7 @@ function gedparse_search_form_submit($form, &$form_state) {
   }
 
   // send the args to the search results page
-  $form_state['redirect'] = $search_url ;
+  $form_state['redirect'] = check_url($search_url) ;
 }
 
 /**
@@ -264,7 +264,7 @@ function _gedparse_display_results($field1, $field2 = NULL) {
   }
 
   elseif (count($name_matches) == 1) {
-    drupal_goto('family/show/' . $name_matches[0]) ;
+    drupal_goto('family/show/' . urlencode($name_matches[0])) ;
   }
 
   else {
@@ -1088,7 +1088,7 @@ function _gedparse_get_all_records() {
     }
 
     catch (Exception $e) {
-      drupal_set_message(t('Cannot open GEDCOM file! Please check Gedparse configuration.'), 'warning') ;
+      drupal_set_message(t('Cannot open GEDCOM file! Please check GEDparse configuration.'), 'warning') ;
       drupal_goto() ;
     }
 
