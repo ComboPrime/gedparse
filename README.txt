@@ -15,7 +15,7 @@ Once GEDparse is installed and enabled, you'll need to configure some
 settings before it will work. Most important of these is telling GEDparse
 where your GEDCOM file is!
 
-Visit admin/config/gedparse to enter the path to your GEDCOM file. Note
+Visit admin/config/content/gedparse to enter the path to your GEDCOM file. Note
 that this file should NOT be accessible over the Web (for privacy reasons).
 This setting is REQUIRED for GEDparse to work.
 
