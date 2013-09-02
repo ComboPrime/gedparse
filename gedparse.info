@@ -3,7 +3,7 @@ description = Generates dynamic web pages from a GEDCOM file.
 
 package = Other
 core = 7.x
-version = 7.x-0.7
+version = 7.x-1.0-alpha
 
 configure = admin/config/gedparse
 
