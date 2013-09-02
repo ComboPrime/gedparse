@@ -259,10 +259,19 @@ function _gedparse_display_results($field1, $field2 = NULL) {
       return strcmp($a['title'], $b['title']) ;
     }) ;
 
+    // implement a pager in case the result set is huge
+    $limit = 20 ;
+    $page = pager_default_initialize(count($name_matches), $limit, 0) ;
+    $offset = $limit * $page ;
     $output = array(
-      '#theme' => 'links',
-      '#links' => $name_matches,
-    ) ;
+      array(
+        '#theme' => 'links',
+        '#links' => array_slice($name_matches, $offset, $limit),
+      ),
+      array(
+        '#theme' => 'pager',
+      ),
+    );
   }
 
   elseif (count($name_matches) == 1) {
