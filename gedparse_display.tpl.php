@@ -4,9 +4,7 @@
  * @file
  * GEDparse's template to display an individual or partnership.
  *
- * Available variables:
- *
- * - $title...................Used for <title> and <h1>.
+ * Available GEDparse variables:
  *
  * - $selected_gender_class...A class setting to style the selected person's
  *                            display based on gender.
@@ -25,33 +23,25 @@
 ?>
 
 <div id="gedparse">
-<div class="row-fluid">
-  <div class="span6 <?php print $selected_gender_class; ?>">
+  <div class="selected <?php print $selected_gender_class; ?>">
     <?php print $selected_html ; ?>
-  </div><!-- end span6 selected_html div -->
+  </div><!-- end selected div -->
 
   <?php if ($partner_html): ?>
-    <div class="span6 <?php print $partner_gender_class; ?>">
-      <?php print $partner_html ; ?>
-    </div><!-- end span6 partner_html div -->
+  <div class="partner <?php print $partner_gender_class; ?>">
+    <?php print $partner_html ; ?>
+  </div><!-- end partner div -->
   <?php endif; ?>
-</div><!-- end row-fluid wrapper div -->
 
-<?php if ($family_html): ?>
-  <div class="row-fluid">
-    <div class="span12 family-info">
-      <div class="row-fluid">
-        <div class="span6">
-          <h2>Family Information</h2>
-          <?php print $family_html ; ?>
-        </div><!-- end span6 family div -->
-        <div class="span6">
-          <?php print $children_list ; ?>
-        </div><!-- end span6 children div -->
-      </div><!-- end row-fluid div -->
-    </div><!-- end span12 div -->
-  <!-- end row-fluid family div -->
-<?php endif; ?>
-
-</div><!-- end row-fluid wrapper div -->
+  <?php if ($family_html): ?>
+  <div class="partnership">
+    <div class="family-info">
+      <h2>Family Information</h2>
+      <?php print $family_html ; ?>
+    </div><!-- end family-info div -->
+    <div class="children">
+      <?php print $children_list ; ?>
+    </div><!-- end children div -->
+  </div><!-- end partnership div -->
+  <?php endif; ?>
 </div><!-- end gedparse div -->
