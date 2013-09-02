@@ -208,13 +208,6 @@ function gedparse_admin() {
     '#default_value' => variable_get('gedparse_headshot_location'),
   );
 
-  $form['gedparse_use_bootstrap'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Use Bootstrap stylesheet?'),
-    '#description' => t('Check to load some Bootstrap 2.3.2 responsive grid CSS.'),
-    '#default_value' => variable_get('gedparse_use_bootstrap'),
-  ) ;
-
   return system_settings_form($form);
 }
 
@@ -947,12 +940,7 @@ function gedparse_theme() {
  * Add custom CSS.
  */
 function gedparse_preprocess_gedparse_display(&$vars) {
-  drupal_add_css(drupal_get_path('module', 'gedparse') . '/gedparse.css');
-
-  // only load if admin has configured
-  if (variable_get('gedparse_use_bootstrap')) {
-    drupal_add_css(drupal_get_path('module', 'gedparse') . '/bootstrap-fluid-2-3-2.css');
-  }
+  drupal_add_css(drupal_get_path('module', 'gedparse') . '/css/gedparse.css');
 }
 
 
