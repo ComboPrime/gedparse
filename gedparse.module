@@ -1,7 +1,7 @@
 <?php
 /**
  * @file
- * Gedparse dynamically generates genealogy web pages from a GEDCOM file.
+ * GEDparse dynamically generates genealogy web pages from a GEDCOM file.
  */
 
 
