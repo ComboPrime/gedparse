@@ -1,14 +1,33 @@
 /* GEDPARSE DISPLAY STYLES */
 
-
-#gedparse .span6,
-#gedparse .span12 {
- margin: 0;
- padding: 0.5rem 1.5rem;
+#gedparse,
+#gedparse * {
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  position: relative;
 }
 
-#gedparse .span6 {
+#gedparse {
+  width: 100%;
+}
+
+#gedparse .selected,
+#gedparse .partner,
+#gedparse .family-info,
+#gedparse .children {
+  padding: 0.5rem 1.5rem;
   width: 50%;
+}
+
+#gedparse .selected,
+#gedparse .family-info {
+  float: left;
+}
+
+#gedparse .partner,
+#gedparse .children {
+  margin: 0 0 0 50%;
 }
 
 #gedparse .gender-f {
@@ -27,8 +46,11 @@
   margin-top: 0;
 }
 
-#gedparse .family-info {
+#gedparse .partnership {
+  clear: left;
   background-color: #ebd7eb;
+  z-index: 100;
+  overflow: auto;
 }
 
 #gedparse img {
@@ -42,8 +64,10 @@
   overflow: hidden;
 }
 
-#gedparse .span6 {
-  margin-bottom: -99990px;
+#gedparse .selected,
+#gedparse .partner,
+#gedparse .partnership {
+  margin-bottom: -99999px;
   padding-bottom: 99999px;
 }
 /* end equal height CSS */
