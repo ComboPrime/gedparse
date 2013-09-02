@@ -472,6 +472,7 @@ function _gedparse_display_person($indi_number, $selected = TRUE) {
       // get M/m or F/f from the file, convert to lowercase,
       // and use that as the array key to get a class name.
       $gender_class = 'gender-' . strtolower(substr($item, 3)) ;
+
       // another nasty space added, so kill it
       $gender_class = str_replace(' ', '', $gender_class) ;
     }
@@ -560,9 +561,15 @@ function _gedparse_display_person($indi_number, $selected = TRUE) {
         ),
       ) ;
 
-    $item_parts = explode("\n2 ", $item) ;
+      $item_parts = explode("\n2 ", $item) ;
 
-    $event['#label'] = $gedparse_event_list[array_shift($item_parts)] ;
+      // some items may only have a 'Y' with no details
+      preg_match('~^([A-Z]+)( Y)*$~', array_shift($item_parts), $matches) ;
+      $event['#label'] = $gedparse_event_list[$matches[1]] ;
+
+      if (count($matches) > 2) {
+        $event['#type'] = 'Yes' ;
+      }
 
       foreach ($item_parts as $part) {
         if (strpos($part, 'TYPE') === 0) {
@@ -799,9 +806,16 @@ function _gedparse_display_family($family_number) {
         ),
       ) ;
 
-    $item_parts = explode("\n2 ", $item) ;
+      $item_parts = explode("\n2 ", $item) ;
 
-    $event['#label'] = $gedparse_family_events[array_shift($item_parts)] ;
+      // some items may only have a 'Y' with no details
+      preg_match('~^([A-Z]+)( Y)*$~', array_shift($item_parts), $matches) ;
+      $event['#label'] = $gedparse_family_events[$matches[1]] ;
+
+      if (count($matches) > 2) {
+        $event['#type'] = 'Yes' ;
+      }
+
 
       foreach ($item_parts as $part) {
         if (strpos($part, 'TYPE') === 0) {
