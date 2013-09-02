@@ -9,10 +9,13 @@
  * Implements hook_help().
  */
 function gedparse_help($path, $arg) {
-  if ($path == 'admin/help#Gedparse') {
-    return t('Gedparse dynamically generates genealogy web pages from a GEDCOM file.');
+  switch ($path) {
+    case 'admin/help#gedparse':
+      $output = file_get_contents(drupal_get_path('module', 'gedparse') . '/README.txt') ;
+      return nl2br($output) ;
   }
 }
+
 
 /**
  * Implements hook_menu().
@@ -22,8 +25,8 @@ function gedparse_menu() {
   $items = array();
 
   // Module configuration page
-  $items['admin/config/gedparse'] = array(
-    'title' => 'Configure GEDparse',
+  $items['admin/config/content/gedparse'] = array(
+    'title' => 'GEDparse',
     'description' => 'Configure settings for the GEDparse module.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('gedparse_admin'),
@@ -71,8 +74,7 @@ function gedparse_permission() {
 function gedparse_block_info() {
   $blocks['gedparse_search'] = array(
     'info' => t('GEDparse Search Form'),
-    // is this really the right setting?
-    'cache' => DRUPAL_CACHE_PER_ROLE,
+    'cache' => DRUPAL_CACHE_GLOBAL,
   );
 
   return $blocks;
@@ -145,13 +147,6 @@ function gedparse_search_form($form, &$form_state) {
 }
 
 /**
- * Handler function to validate the search form.
- */
-function gedparse_search_form_validate($form, &$form_state) {
-  // think Drupal Form API already prevents XSS and other attacks, so no need to validate?
-}
-
-/**
  * Handler function to send submitted search terms to the results page.
  */
 function gedparse_search_form_submit($form, &$form_state) {
@@ -212,6 +207,13 @@ function gedparse_admin() {
     '#description' => t('This directory must be accessible over the web.'),
     '#default_value' => variable_get('gedparse_headshot_location'),
   );
+
+  $form['gedparse_use_bootstrap'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Use Bootstrap stylesheet?'),
+    '#description' => t('Check to load some Bootstrap 2.3.2 responsive grid CSS.'),
+    '#default_value' => variable_get('gedparse_use_bootstrap'),
+  ) ;
 
   return system_settings_form($form);
 }
@@ -938,8 +940,10 @@ function gedparse_theme() {
 function gedparse_preprocess_gedparse_display(&$vars) {
   drupal_add_css(drupal_get_path('module', 'gedparse') . '/gedparse.css');
 
-  // add configuration checkbox!
-  drupal_add_css(drupal_get_path('module', 'gedparse') . '/bootstrap-fluid-2-3-2.css');
+  // only load if admin has configured
+  if (variable_get('gedparse_use_bootstrap')) {
+    drupal_add_css(drupal_get_path('module', 'gedparse') . '/bootstrap-fluid-2-3-2.css');
+  }
 }
 
 
